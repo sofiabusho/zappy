@@ -2,6 +2,6 @@
 
 Rust TCP game server for Zappy.
 
-Binary / wrapper: `./server` (wired in later Sprint 0 / server tickets).
+Entrypoint (stub): `./server/server` — prints subject usage until S01 implements real CLI.
 
 See [`AGENTS.md`](../AGENTS.md) and [`docs/SDS.md`](../docs/SDS.md).

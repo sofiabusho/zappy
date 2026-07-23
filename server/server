@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Wrapper stub for the Zappy server (A02).
+# Invoked as ./server/server (root ./server conflicts with server/ on Unix).
+# Real CLI parsing lands in S01.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STUB="${ROOT}/stub.sh"
+
+if [[ -x "${STUB}" ]]; then
+  exec "${STUB}" "$@"
+fi
+
+cat <<'EOF'
+ Usage: ./server -p <port> -x <width> -y <height> -n <team> [<team>] [<team>] ... -c <nb> [-t <t>]
+ -p port number
+ -x world width
+ -y world height
+ -n team_name_1 team_name_2 ...
+ -c number of clients authorized at the beginning of the game
+ -t [100] time unit divider (the greater t is, the faster the game will go)
+EOF
+exit 1

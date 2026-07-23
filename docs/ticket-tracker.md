@@ -26,8 +26,8 @@
 
 | Field | Value |
 |-------|-------|
-| Last push | A01 scaffold — agent |
-| Who’s up | Next: claim **A02** (usage stubs) |
+| Last push | A02 wrapper stubs — agent |
+| Who’s up | Next: claim **A03** (lint/test harness) |
 | Note | Serial turns only; do not start a second 🟢 |
 
 ## 3. Tracks
@@ -135,8 +135,8 @@ Tracks are **focus areas**, not parallel merge lanes.
 | ID | Status | Ticket | Size | Deps | Coverage | Claimed by |
 |----|--------|--------|------|------|----------|------------|
 | A01 | ✅ | Create repo scaffold: `server/`, `client/`, `gui/`, `scripts/`, root README pointing at AGENTS.md | S | — | RQ01 | agent |
-| A02 | 🟡 | Add `./server` and `./client` wrapper stubs + placeholder usage strings matching subject | S | A01 | RQ17, RQ18, AQ01, AQ11 | |
-| A03 | ⬜ | Wire lint/format/test commands (`cargo fmt/clippy/test`, `ruff`/`pytest`, GUI lint) + `scripts/check.sh` | M | A01 | — | |
+| A02 | ✅ | Add `./server` and `./client` wrapper stubs + placeholder usage strings matching subject | S | A01 | RQ17, RQ18, AQ01, AQ11 | agent |
+| A03 | 🟡 | Wire lint/format/test commands (`cargo fmt/clippy/test`, `ruff`/`pytest`, GUI lint) + `scripts/check.sh` | M | A01 | — | |
 | A04 | ⬜ | Document build/run/audit quickstart in README (localhost only; siege warning) | S | A02, A03 | RQ16 | |
 
 ### Sprint 1 — Server foundation
@@ -295,21 +295,20 @@ Tracks are **focus areas**, not parallel merge lanes.
 
 ## 10. Immediate next work queue
 
-1. **A02** — usage stubs (🟡 Ready after A01)
-2. **A03** — lint/test harness (after A01; can follow A02)
-3. **A04** — README polish (after A02+A03)
-4. Then **S01**…
+1. **A03** — lint/test harness (Deps A01 ✅; Ready)
+2. **A04** — README polish (after A03; needs A02 ✅ too)
+3. Then **S01**…
 
 ## 11. Summary by track
 
 | Track | Total | ✅ | 🟢 | 🟡/⬜ | 🔴 |
 |-------|------:|--:|--:|-----:|--:|
-| A Bootstrap | 4 | 1 | 0 | 3 | 0 |
+| A Bootstrap | 4 | 2 | 0 | 2 | 0 |
 | S Server | 16 | 0 | 0 | 16 | 0 |
 | C Client | 5 | 0 | 0 | 5 | 0 |
 | G Graphic | 5 | 0 | 0 | 5 | 0 |
 | I Integration | 2 | 0 | 0 | 2 | 0 |
 | B Bonus | 4 | 0 | 0 | 4 | 0 |
-| **All** | **36** | **1** | **0** | **35** | **0** |
+| **All** | **36** | **2** | **0** | **34** | **0** |
 
 Core (non-bonus) tickets: **32**. Bonus: **4**.

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Wrapper stub for the Zappy AI client (A02).
+# Invoked as ./client/client (root ./client conflicts with client/ on Unix).
+# Real CLI + TCP/handshake land in C01.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STUB="${ROOT}/stub.py"
+
+if [[ -f "${STUB}" ]]; then
+  exec python3 "${STUB}" "$@"
+fi
+
+cat <<'EOF'
+Usage: ./client -n <team> -p <port> [-h <hostname>]
+ -n team_name
+ -p port
+ -h name of the host , the default is localhost
+EOF
+exit 1
