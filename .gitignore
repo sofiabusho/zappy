@@ -1,3 +1,21 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local tool bootstrap (scripts/ensure-dev-tools.sh)
+.tools/
+
+# Rust
+server/target/
+
+# Node / GUI
+gui/node_modules/
+gui/dist/
+*.tsbuildinfo
+
+# OS / editor
+.DS_Store
+*.swp

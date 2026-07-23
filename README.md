@@ -16,8 +16,8 @@ Entirely automatic multiplayer simulation: AI clients connect to a shared TCP se
 ```bash
 ./server/server    # prints usage (AQ01); real CLI in S01
 ./client/client    # prints usage (AQ11); real CLI in C01
-python3 scripts/test_scaffold.py
-python3 scripts/test_wrappers.py
+(cd gui && npm install)   # one-time GUI deps
+./scripts/check.sh        # cargo fmt/clippy/test + ruff/pytest + GUI lint + script tests
 ```
 
 > Unix note: a root file named `./server` cannot coexist with the `server/` directory. Entrypoints are documented as `./server/server` and `./client/client` (see AGENTS.md: root **or documented paths**).

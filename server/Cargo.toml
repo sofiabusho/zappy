@@ -1,0 +1,11 @@
+[package]
+name = "zappy_server"
+version = "0.1.0"
+edition = "2021"
+description = "Zappy TCP game server (Rust)"
+license = "MIT"
+publish = false
+
+[lib]
+name = "zappy_server"
+path = "src/lib.rs"
