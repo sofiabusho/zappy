@@ -22,4 +22,4 @@ Dev helpers for build, lint, and test.
 | server | `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test` |
 | client | `ruff check .`, `pytest` |
 | gui | `npm run lint`, `npm test` |
-| scripts | `test_scaffold.py`, `test_wrappers.py`, `test_check_harness.py` |
+| scripts | `test_scaffold.py`, `test_wrappers.py`, `test_check_harness.py`, `test_readme_quickstart.py` |

@@ -26,8 +26,8 @@
 
 | Field | Value |
 |-------|-------|
-| Last push | A03 lint/test harness — agent |
-| Who’s up | Next: claim **A04** (README quickstart) |
+| Last push | A04 README quickstart — agent |
+| Who’s up | Next: claim **S01** (server CLI parse) |
 | Note | Serial turns only; do not start a second 🟢 |
 
 ## 3. Tracks
@@ -137,13 +137,13 @@ Tracks are **focus areas**, not parallel merge lanes.
 | A01 | ✅ | Create repo scaffold: `server/`, `client/`, `gui/`, `scripts/`, root README pointing at AGENTS.md | S | — | RQ01 | agent |
 | A02 | ✅ | Add `./server` and `./client` wrapper stubs + placeholder usage strings matching subject | S | A01 | RQ17, RQ18, AQ01, AQ11 | agent |
 | A03 | ✅ | Wire lint/format/test commands (`cargo fmt/clippy/test`, `ruff`/`pytest`, GUI lint) + `scripts/check.sh` | M | A01 | — | agent |
-| A04 | 🟡 | Document build/run/audit quickstart in README (localhost only; siege warning) | S | A02, A03 | RQ16 | |
+| A04 | ✅ | Document build/run/audit quickstart in README (localhost only; siege warning) | S | A02, A03 | RQ16 | agent |
 
 ### Sprint 1 — Server foundation
 
 | ID | Status | Ticket | Size | Deps | Coverage | Claimed by |
 |----|--------|--------|------|------|----------|------------|
-| S01 | ⬜ | CLI parse `-p -x -y -n -c -t`; usage on bad/missing args; default t=100 | M | A02 | RQ17, AQ01 | |
+| S01 | 🟡 | CLI parse `-p -x -y -n -c -t`; usage on bad/missing args; default t=100 | M | A02 | RQ17, AQ01 | |
 | S02 | ⬜ | Multiplexed TCP listen; accept; send `WELCOME\n`; non-blocking event loop skeleton | M | S01 | RQ16, AQ02 | |
 | S03 | ⬜ | Handshake: team → nb-client → `x y`; invalid team error + disconnect | M | S02 | RQ19, AQ14 | |
 | S04 | ⬜ | Toroidal world + resource generator with documented rules; six stone types + food | L | S01 | RQ03, RQ04, RQ05, AQ10, AQ27, AQ28, AQ29 | |
@@ -295,19 +295,19 @@ Tracks are **focus areas**, not parallel merge lanes.
 
 ## 10. Immediate next work queue
 
-1. **A04** — README build/run/audit quickstart (🟡 Ready; Deps A02+A03 ✅)
-2. Then **S01**…
+1. **S01** — server CLI parse (🟡 Ready; Deps A02 ✅)
+2. Then **S02** / **S04** as deps allow…
 
 ## 11. Summary by track
 
 | Track | Total | ✅ | 🟢 | 🟡/⬜ | 🔴 |
 |-------|------:|--:|--:|-----:|--:|
-| A Bootstrap | 4 | 3 | 0 | 1 | 0 |
+| A Bootstrap | 4 | 4 | 0 | 0 | 0 |
 | S Server | 16 | 0 | 0 | 16 | 0 |
 | C Client | 5 | 0 | 0 | 5 | 0 |
 | G Graphic | 5 | 0 | 0 | 5 | 0 |
 | I Integration | 2 | 0 | 0 | 2 | 0 |
 | B Bonus | 4 | 0 | 0 | 4 | 0 |
-| **All** | **36** | **3** | **0** | **33** | **0** |
+| **All** | **36** | **4** | **0** | **32** | **0** |
 
 Core (non-bonus) tickets: **32**. Bonus: **4**.

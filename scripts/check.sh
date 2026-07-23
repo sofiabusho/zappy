@@ -53,9 +53,10 @@ section "gui: npm run lint / npm test"
   npm test
 )
 
-section "scripts: scaffold + wrapper + harness tests"
+section "scripts: scaffold + wrapper + harness + readme tests"
 python3 scripts/test_scaffold.py
 python3 scripts/test_wrappers.py
 python3 scripts/test_check_harness.py
+python3 scripts/test_readme_quickstart.py
 
 printf '\nOK: all checks passed\n'
