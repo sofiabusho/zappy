@@ -76,7 +76,7 @@ All lines end with `\n`.
 |--------|----------------|
 | `cli` | Arg parse, usage, defaults |
 | `net` | Multiplexed accept/read/write via `mio` poll; send `WELCOME\n` on connect; never blocks the event loop forever (50ms poll timeout) |
-| `world` | Toroidal grid; tiles; resource spawn/respawn rules |
+| `world` | Toroidal grid; tile food/stones; density-based generate + respawn rules (S04) |
 | `player` | Position, orientation, level, inventory, food timer, team, queue |
 | `commands` | Parse, validate, enqueue, apply effects |
 | `time` | Global tick from `t`; schedule action completions |
@@ -108,14 +108,34 @@ Player {
 
 ### Resource generation rules (project-owned; must be explained to auditors)
 
-Minimum rules (align with subject examples; extend in code + here as implemented):
+Implemented in `server/src/world.rs` (S04). Subject hard constraints (always enforced):
 
 1. At most **one food** per square.
 2. At most **one** stone of each type per square.
 3. At most **three** different stone types on one square.
-4. Do not dump all stones onto a single square; use density caps / distribution across the map.
-5. (Document any respawn policy here when implemented.)
+4. Do not dump all stones onto a single square — placement shuffles the map and
+   spreads each stone type independently.
 
+**Initial densities** (fraction of tiles; `target = round(density × width × height)`):
+
+| Resource | Density |
+|----------|--------:|
+| food | 0.50 |
+| jade | 0.30 |
+| peridot | 0.25 |
+| amber | 0.20 |
+| amethyst | 0.15 |
+| garnet | 0.10 |
+| ammolite | 0.05 |
+
+**Algorithm:** for each resource, shuffle tile indices with a seeded xorshift RNG
+and place on the first eligible tiles (respecting the hard constraints). Same
+seed → same map (supports a future seed CLI flag).
+
+**Respawn:** every `RESPAWN_PERIOD_TU` (20) time units, `World::respawn_tick`
+tries to refill each resource toward the same densities at `RESPAWN_RATE` (15%
+of the missing count per pass). Respawn is implemented now; the time loop will
+call it from S06+.
 ## 6. Vision
 
 Level `L` sees a forward triangle: row `d` (1..=L) has `2*d+1` tiles, indexed as in raw diagrams. `see` lists tile contents left-to-right, near-to-far; player does not see self; multiple objects on a tile are space-separated; empty tiles appear empty in the brace list.

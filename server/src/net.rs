@@ -1,16 +1,8 @@
-//! Multiplexed TCP accept + handshake (S02 / S03).
+//! Multiplexed TCP accept + handshake (S02 / S03) and world bootstrap (S04).
 //!
-//! Non-blocking `mio` poll loop: accept clients, send [`WELCOME`], then complete
-//! the subject handshake (RQ19 / AQ14):
-//!
-//! 1. Client sends `team-name\n`
-//! 2. Unknown team → print `Error: the team <name> doesn't exist` and disconnect
-//! 3. Known team with a free slot → reply `nb-client\n` then `X Y\n` (`nb-client`
-//!    is remaining slots **after** this join)
-//! 4. Team full → disconnect without joining
-//!
-//! Inbound bytes after a successful handshake are drained until later tickets
-//! parse commands (S06+). Slot counts are restored when a joined client drops.
+//! Non-blocking `mio` poll loop: accept clients, send [`WELCOME`], complete the
+//! subject handshake (RQ19 / AQ14), and hold a generated [`crate::world::World`]
+//! for later gameplay tickets.
 
 use std::collections::HashMap;
 use std::io::{self, ErrorKind, Read, Write};
@@ -22,6 +14,7 @@ use mio::net::{TcpListener, TcpStream};
 use mio::{Events, Interest, Poll, Token};
 
 use crate::cli::Config;
+use crate::world::World;
 
 /// Exact welcome line from the subject handshake table (`WELCOME\n`).
 pub const WELCOME: &[u8] = b"WELCOME\n";
@@ -245,6 +238,11 @@ pub fn serve_listener(
     let width = config.width;
     let height = config.height;
 
+    // Toroidal map + initial resources (S04). Held for spawn/movement tickets.
+    #[allow(unused_mut)] // S05+/S10 will mutate tiles and call respawn_tick.
+    let mut world = World::generate_random(width, height);
+    eprintln!("server: {}", world.summary_line());
+
     if let Ok(addr) = listener.local_addr() {
         eprintln!("server: listening on {addr}");
     }
@@ -277,6 +275,9 @@ pub fn serve_listener(
                 )?,
             }
         }
+
+        // Retain `world` for the lifetime of the server process (S05+).
+        let _ = &world;
     }
 }
 

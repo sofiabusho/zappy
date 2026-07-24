@@ -26,8 +26,8 @@
 
 | Field | Value |
 |-------|-------|
-| Last push | S03 handshake — agent |
-| Who’s up | Next: claim **S04** (world/resources) or **S06** (time/queue) |
+| Last push | S04 world/resources — agent |
+| Who’s up | Next: claim **S05** (player spawn) or **S06** (time/queue) |
 | Note | Serial turns only; do not start a second 🟢 |
 
 ## 3. Tracks
@@ -146,8 +146,8 @@ Tracks are **focus areas**, not parallel merge lanes.
 | S01 | ✅ | CLI parse `-p -x -y -n -c -t`; usage on bad/missing args; default t=100 | M | A02 | RQ17, AQ01 | routine |
 | S02 | ✅ | Multiplexed TCP listen; accept; send `WELCOME\n`; non-blocking event loop skeleton | M | S01 | RQ16, AQ02 | agent |
 | S03 | ✅ | Handshake: team → nb-client → `x y`; invalid team error + disconnect | M | S02 | RQ19, AQ14 | agent |
-| S04 | 🟡 | Toroidal world + resource generator with documented rules; six stone types + food | L | S01 | RQ03, RQ04, RQ05, AQ10, AQ27, AQ28, AQ29 | |
-| S05 | ⬜ | Player spawn state: level 1, 10 food→1260 TU, 0 stones; team membership | M | S03, S04 | RQ06, AQ21, AQ22 | |
+| S04 | ✅ | Toroidal world + resource generator with documented rules; six stone types + food | L | S01 | RQ03, RQ04, RQ05, AQ10, AQ27, AQ28, AQ29 | agent |
+| S05 | 🟡 | Player spawn state: level 1, 10 food→1260 TU, 0 stones; team membership | M | S03, S04 | RQ06, AQ21, AQ22 | |
 | S06 | 🟡 | Time scheduler (`t`) + per-player cmd queue (max 10) + unknown→`ko` | L | S03 | RQ10, RQ11, RQ12, AQ06 | |
 
 ### Sprint 2 — Server gameplay
@@ -298,19 +298,20 @@ Tracks are **focus areas**, not parallel merge lanes.
 1. ~~**S01** — server CLI parse~~ ✅ done
 2. ~~**S02** — multiplexed TCP listen + `WELCOME`~~ ✅ done
 3. ~~**S03** — handshake team → nb-client → `x y`~~ ✅ done
-4. **S04** — toroidal world + resource generator (🟡 Ready; Deps S01 ✅)
-5. **S06** — time scheduler + cmd queue (🟡 Ready; Deps S03 ✅)
+4. ~~**S04** — toroidal world + resource generator~~ ✅ done
+5. **S05** — player spawn state (🟡 Ready; Deps S03+S04 ✅)
+6. **S06** — time scheduler + cmd queue (🟡 Ready; Deps S03 ✅)
 
 ## 11. Summary by track
 
 | Track | Total | ✅ | 🟢 | 🟡/⬜ | 🔴 |
 |-------|------:|--:|--:|-----:|--:|
 | A Bootstrap | 4 | 4 | 0 | 0 | 0 |
-| S Server | 16 | 3 | 0 | 13 | 0 |
+| S Server | 16 | 4 | 0 | 12 | 0 |
 | C Client | 5 | 0 | 0 | 5 | 0 |
 | G Graphic | 5 | 0 | 0 | 5 | 0 |
 | I Integration | 2 | 0 | 0 | 2 | 0 |
 | B Bonus | 4 | 0 | 0 | 4 | 0 |
-| **All** | **36** | **7** | **0** | **29** | **0** |
+| **All** | **36** | **8** | **0** | **28** | **0** |
 
 Core (non-bonus) tickets: **32**. Bonus: **4**.
