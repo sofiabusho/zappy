@@ -26,8 +26,8 @@
 
 | Field | Value |
 |-------|-------|
-| Last push | S16 harden — agent |
-| Who’s up | Next: claim **C01** (AI client) or **G01** (GUI scaffold) |
+| Last push | C01 client CLI+handshake — software-sappho |
+| Who’s up | Next: claim **C02** (client cmd pipeline, Deps C01 ✅ S06 ✅) or **G01** (GUI scaffold) |
 | Note | Serial turns only; do not start a second 🟢 |
 
 ## 3. Tracks
@@ -169,7 +169,7 @@ Tracks are **focus areas**, not parallel merge lanes.
 
 | ID | Status | Ticket | Size | Deps | Coverage | Claimed by |
 |----|--------|--------|------|------|----------|------------|
-| C01 | ⬜ | Real `./client` CLI + TCP connect + handshake | M | S03, A02 | RQ18, RQ19, AQ11, AQ12, AQ13, AQ14 | |
+| C01 | ✅ | Real `./client` CLI + TCP connect + handshake | M | S03, A02 | RQ18, RQ19, AQ11, AQ12, AQ13, AQ14 | software-sappho |
 | C02 | ⬜ | Command sender/receiver respecting pipeline ≤10 and delays | M | C01, S06 | RQ11, RQ12 | |
 | C03 | ⬜ | Survival AI: move, see, pick food, avoid death | M | C02, S10 | RQ07, RQ20, AQ12, AQ13, AQ23 | |
 | C04 | ⬜ | Gathering + broadcast meetup + enchantment attempts | L | C03, S12, S14 | RQ09, RQ15, RQ20, AQ25 | |
@@ -296,7 +296,8 @@ Tracks are **focus areas**, not parallel merge lanes.
 ## 10. Immediate next work queue
 
 1. ~~**S01**–**S16**~~ ✅ **server track complete**
-2. Next tracks: **C01** (AI client) or **G01** (GUI) — check Deps in tracker
+2. ~~**C01**~~ ✅ client CLI + TCP connect + handshake
+3. Next tracks: **C02** (client cmd pipeline, Deps C01 ✅ S06 ✅) or **G01** (GUI) — check Deps in tracker
 
 ## 11. Summary by track
 
@@ -304,10 +305,10 @@ Tracks are **focus areas**, not parallel merge lanes.
 |-------|------:|--:|--:|-----:|--:|
 | A Bootstrap | 4 | 4 | 0 | 0 | 0 |
 | S Server | 16 | 16 | 0 | 0 | 0 |
-| C Client | 5 | 0 | 0 | 5 | 0 |
+| C Client | 5 | 1 | 0 | 4 | 0 |
 | G Graphic | 5 | 0 | 0 | 5 | 0 |
 | I Integration | 2 | 0 | 0 | 2 | 0 |
 | B Bonus | 4 | 0 | 0 | 4 | 0 |
-| **All** | **36** | **20** | **0** | **16** | **0** |
+| **All** | **36** | **21** | **0** | **15** | **0** |
 
 Core (non-bonus) tickets: **32**. Bonus: **4**.
