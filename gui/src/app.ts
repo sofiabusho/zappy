@@ -4,7 +4,8 @@
  * Wires a {@link Transport} → protocol parse → {@link WorldState} → {@link
  * CanvasRenderer}. With `?ws=ws://host:port` it connects to a WebSocket bridge
  * in front of the Rust server; otherwise it runs the offline demo stream so
- * the map still renders. Icons, click-details, and sound viz land in G02–G05.
+ * the map still renders. Icons (G02), click-details (G03/G04), and sound viz
+ * (G05) build on this path.
  */
 
 import { parseGuiLine } from "./protocol.js";

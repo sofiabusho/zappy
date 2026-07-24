@@ -2,11 +2,12 @@
   "name": "zappy-gui",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Zappy graphic client (TypeScript + HTML5 Canvas)",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "lint": "eslint . && tsc --noEmit",
-    "test": "tsc --noEmit"
+    "test": "tsc --noEmit && tsc -p tsconfig.build.json && node --test dist/g02.test.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

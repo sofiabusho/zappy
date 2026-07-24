@@ -1,13 +1,15 @@
 /**
- * Live world model fed by the server → GUI protocol (G01).
+ * Live world model fed by the server → GUI protocol (G01 / G02).
  *
- * Holds map dimensions, per-tile resource counts, and the set of known team
- * names. The grid is toroidal (RQ03 / AQ10): coordinate lookups wrap in both
- * axes so the renderer and later click-hit-testing never index out of range.
+ * Holds map dimensions, per-tile resource counts, known teams, and player
+ * entities for icon rendering. The grid is toroidal (RQ03 / AQ10): coordinate
+ * lookups wrap in both axes so the renderer and later click-hit-testing never
+ * index out of range.
  */
 
 import {
   type GuiMessage,
+  type GuiPlayer,
   type TileContent,
   emptyTile,
 } from "./protocol.js";
@@ -17,6 +19,7 @@ export class WorldState {
   private height = 0;
   private tiles: TileContent[] = [];
   private readonly teams = new Set<string>();
+  private readonly players = new Map<number, GuiPlayer>();
 
   /** Map width in tiles (0 until `msz` arrives). */
   get mapWidth(): number {
@@ -36,6 +39,11 @@ export class WorldState {
   /** Known team names, in insertion order. */
   teamNames(): string[] {
     return [...this.teams];
+  }
+
+  /** Living players currently tracked for icons. */
+  allPlayers(): GuiPlayer[] {
+    return [...this.players.values()];
   }
 
   /** Wrap a coordinate onto the torus; returns a value in `[0, size)`. */
@@ -63,6 +71,18 @@ export class WorldState {
     this.width = width;
     this.height = height;
     this.tiles = Array.from({ length: width * height }, emptyTile);
+    this.players.clear();
+  }
+
+  private upsertPlayer(player: GuiPlayer): void {
+    if (!this.isReady()) {
+      return;
+    }
+    this.players.set(player.id, {
+      ...player,
+      x: WorldState.wrap(player.x, this.width),
+      y: WorldState.wrap(player.y, this.height),
+    });
   }
 
   /** Fold one parsed message into the world state. */
@@ -84,6 +104,45 @@ export class WorldState {
 
       case "team-name":
         this.teams.add(message.name);
+        break;
+
+      case "player-new":
+        this.teams.add(message.team);
+        this.upsertPlayer({
+          id: message.id,
+          x: message.x,
+          y: message.y,
+          orientation: message.orientation,
+          level: message.level,
+          team: message.team,
+        });
+        break;
+
+      case "player-pos": {
+        const existing = this.players.get(message.id);
+        if (existing === undefined) {
+          // Position update before spawn — track with placeholder metadata.
+          this.upsertPlayer({
+            id: message.id,
+            x: message.x,
+            y: message.y,
+            orientation: message.orientation,
+            level: 1,
+            team: "?",
+          });
+          break;
+        }
+        this.upsertPlayer({
+          ...existing,
+          x: message.x,
+          y: message.y,
+          orientation: message.orientation,
+        });
+        break;
+      }
+
+      case "player-dead":
+        this.players.delete(message.id);
         break;
 
       case "unknown":
