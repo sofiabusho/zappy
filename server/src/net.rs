@@ -78,6 +78,14 @@ impl TeamSlots {
     fn free(&self, team: &str) -> u32 {
         self.inner.get(team).map(|(free, _)| *free).unwrap_or(0)
     }
+
+    /// After a ship arrives: one more authorized connection for `team` (RQ13).
+    fn add_slot(&mut self, team: &str) {
+        if let Some((free, max)) = self.inner.get_mut(team) {
+            *free = free.saturating_add(1);
+            *max = max.saturating_add(1);
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -194,10 +202,12 @@ enum HandshakeStep {
     Full,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn progress_handshake(
     conn: &mut Connection,
     slots: &mut TeamSlots,
     players: &mut PlayerSet,
+    eggs: &mut crate::eggs::EggSet,
     world: &World,
     rng: &mut SeededRng,
     width: u32,
@@ -211,7 +221,11 @@ fn progress_handshake(
     };
     match slots.try_join(&team) {
         Ok(remaining) => {
-            let id = players.spawn(&team, world, rng);
+            let id = if let Some((x, y)) = eggs.take_spawn(&team) {
+                players.spawn_at(&team, x, y, rng)
+            } else {
+                players.spawn(&team, world, rng)
+            };
             conn.team = Some(team);
             conn.player_id = Some(id);
             conn.phase = Phase::Joined;
@@ -260,6 +274,7 @@ pub fn serve_listener(
     let mut world = World::generate_random(width, height);
     eprintln!("server: {}", world.summary_line());
     let mut players = PlayerSet::new();
+    let mut eggs = crate::eggs::EggSet::new();
     let mut rng = SeededRng::new(world.seed ^ 0x0C0F_FEE0_0D15_CAFE);
     let t = config.t;
     let game_start = Instant::now();
@@ -305,6 +320,7 @@ pub fn serve_listener(
                     &mut connections,
                     &mut slots,
                     &mut players,
+                    &mut eggs,
                     &world,
                     &mut rng,
                     token,
@@ -320,10 +336,14 @@ pub fn serve_listener(
             &mut poll,
             &mut connections,
             &mut players,
+            &mut eggs,
             &slots,
             &mut world,
+            game_start,
             t,
         );
+
+        tick_ships(&mut eggs, &mut slots, game_start, t);
 
         tick_hunger_and_deaths(
             &mut poll,
@@ -411,6 +431,7 @@ fn handle_connection_event(
     connections: &mut HashMap<Token, Connection>,
     slots: &mut TeamSlots,
     players: &mut PlayerSet,
+    eggs: &mut crate::eggs::EggSet,
     world: &World,
     rng: &mut SeededRng,
     token: Token,
@@ -445,7 +466,7 @@ fn handle_connection_event(
         }
 
         if !drop_conn {
-            match progress_handshake(conn, slots, players, world, rng, width, height) {
+            match progress_handshake(conn, slots, players, eggs, world, rng, width, height) {
                 HandshakeStep::Idle => {}
                 HandshakeStep::JoinedNeedsWrite => {
                     want_writable = conn.pending_out();
@@ -524,15 +545,19 @@ fn ingest_player_commands(conn: &mut Connection, players: &mut PlayerSet, t: u32
 }
 
 /// Finish delayed commands and queue their protocol replies.
+#[allow(clippy::too_many_arguments)]
 fn tick_command_completions(
     poll: &mut Poll,
     connections: &mut HashMap<Token, Connection>,
     players: &mut PlayerSet,
+    eggs: &mut crate::eggs::EggSet,
     slots: &TeamSlots,
     world: &mut World,
+    game_start: Instant,
     t: u32,
 ) {
     let now = Instant::now();
+    let now_tu = elapsed_time_units(now.duration_since(game_start), t);
     let tokens: Vec<Token> = connections.keys().copied().collect();
     for token in tokens {
         let player_id = match connections.get(&token).and_then(|c| c.player_id) {
@@ -562,6 +587,22 @@ fn tick_command_completions(
                     conn.queue_out(reply.as_bytes());
                     wrote = true;
                 }
+                Command::Broadcast(text) => {
+                    let messages = crate::broadcast::apply_broadcast(player_id, players, world);
+                    for msg in messages {
+                        deliver_to_player(
+                            poll,
+                            connections,
+                            msg.player_id,
+                            format!("message {},{}\n", msg.k, text).as_bytes(),
+                        );
+                    }
+                    let Some(conn) = connections.get_mut(&token) else {
+                        break;
+                    };
+                    conn.queue_out(b"ok\n");
+                    wrote = true;
+                }
                 Command::Kick => match crate::kick::apply_kick(player_id, players, world) {
                     crate::kick::KickOutcome::Ok { victims } => {
                         for (vid, k) in victims {
@@ -586,11 +627,9 @@ fn tick_command_completions(
                         wrote = true;
                     }
                 },
-                Command::Broadcast(text) => {
-                    let targets = crate::sound::broadcast_targets(player_id, players, world);
-                    for (vid, k) in targets {
-                        let line = crate::sound::message_line(k, text);
-                        deliver_to_player(poll, connections, vid, line.as_bytes());
+                Command::Fork => {
+                    if let Some(player) = players.get(player_id) {
+                        eggs.call_ship(&player.team, player.x, player.y, now_tu);
                     }
                     let Some(conn) = connections.get_mut(&token) else {
                         break;
@@ -681,9 +720,8 @@ fn complete_command(
             player.turn_left();
             "ok\n".to_string()
         }
-        Command::Fork => "ok\n".to_string(),
-        Command::See | Command::Kick | Command::Broadcast(_) => {
-            unreachable!("see/kick/broadcast handled in tick_command_completions")
+        Command::See | Command::Kick | Command::Broadcast(_) | Command::Fork => {
+            unreachable!("see/kick/broadcast/fork handled in tick_command_completions")
         }
         Command::Inventory => player.inventory_reply(),
         Command::Pick(obj) => {
@@ -702,6 +740,18 @@ fn complete_command(
         }
         Command::Enchantment => "evolution in progress\n".to_string(),
         Command::ConnectNbr => format!("{}\n", slots.free(&player.team)),
+    }
+}
+
+/// Hatch ships whose 600/t travel is done; each grants one team slot (S13).
+fn tick_ships(eggs: &mut crate::eggs::EggSet, slots: &mut TeamSlots, game_start: Instant, t: u32) {
+    let now_tu = elapsed_time_units(Instant::now().duration_since(game_start), t);
+    for egg in eggs.hatch_due(now_tu) {
+        slots.add_slot(&egg.team);
+        eprintln!(
+            "server: ship arrived for team {} at ({}, {})",
+            egg.team, egg.x, egg.y
+        );
     }
 }
 
@@ -951,6 +1001,37 @@ mod tests {
         assert_eq!(slots.try_join("nope"), Err(JoinError::Unknown));
         slots.release("a");
         assert_eq!(slots.try_join("a"), Ok(0));
+        slots.add_slot("a");
+        assert_eq!(slots.free("a"), 1);
+        assert_eq!(slots.try_join("a"), Ok(0));
+    }
+
+    #[test]
+    fn fork_ship_increases_connect_nbr_after_600_tu() {
+        let mut cfg = test_config(1);
+        cfg.t = 1000; // 1 TU = 1ms → ship ~600ms after fork ok
+        let (addr, running, handle) = spawn_server(cfg);
+        let (mut client, nb, _, _) = handshake(addr, "alpha").expect("handshake");
+        assert_eq!(nb, 0);
+
+        client.write_all(b"connect_nbr\n").unwrap();
+        assert_eq!(read_line(&mut client).unwrap(), b"0\n");
+
+        client.write_all(b"fork\n").unwrap();
+        assert_eq!(read_line(&mut client).unwrap(), b"ok\n");
+
+        // Wait for ship (600 TU) with margin.
+        thread::sleep(Duration::from_millis(750));
+
+        client.write_all(b"connect_nbr\n").unwrap();
+        assert_eq!(read_line(&mut client).unwrap(), b"1\n");
+
+        let (mut joiner, nb2, _, _) = handshake(addr, "alpha").expect("ship slot");
+        assert_eq!(nb2, 0);
+        joiner.write_all(b"connect_nbr\n").unwrap();
+        assert_eq!(read_line(&mut joiner).unwrap(), b"0\n");
+
+        stop_server(running, handle);
     }
 
     #[test]
@@ -992,8 +1073,59 @@ mod tests {
         client.write_all(b"inventory\n").unwrap();
         let inv = read_line(&mut client).expect("inventory");
         let inv_str = std::str::from_utf8(&inv).unwrap();
-        assert!(inv_str.starts_with("{food 1260,"));
+        // Life may have drained a few TU under high `t`; shape still matches subject.
+        assert!(inv_str.starts_with("{food "));
+        assert!(inv_str.contains(", jade 0"));
         assert!(inv_str.ends_with("}\n"));
+
+        stop_server(running, handle);
+    }
+
+    #[test]
+    fn broadcast_replies_ok_and_delivers_message_to_others() {
+        let mut cfg = test_config(5);
+        cfg.t = 1000; // 7/t = 7ms
+        let (addr, running, handle) = spawn_server(cfg);
+
+        let (mut sender, _, _, _) = handshake(addr, "alpha").expect("sender handshake");
+        let (mut listener, _, _, _) = handshake(addr, "alpha").expect("listener handshake");
+
+        sender.write_all(b"broadcast hello world\n").unwrap();
+        assert_eq!(read_line(&mut sender).expect("ok"), b"ok\n");
+
+        let msg = read_line(&mut listener).expect("message");
+        let msg = std::str::from_utf8(&msg).unwrap();
+        // `message <K>,<text>` with K a single sector digit 0..=8 (RQ15 / AQ33).
+        assert!(msg.starts_with("message "), "got {msg:?}");
+        assert!(msg.ends_with(",hello world\n"), "got {msg:?}");
+        let k = &msg["message ".len().."message ".len() + 1];
+        assert!(
+            k.chars().all(|c| c.is_ascii_digit()),
+            "K should be a digit, got {msg:?}"
+        );
+
+        stop_server(running, handle);
+    }
+
+    #[test]
+    fn broadcaster_does_not_receive_own_message() {
+        let mut cfg = test_config(5);
+        cfg.t = 1000;
+        let (addr, running, handle) = spawn_server(cfg);
+
+        let (mut solo, _, _, _) = handshake(addr, "alpha").expect("handshake");
+        solo.write_all(b"broadcast lonely\n").unwrap();
+        assert_eq!(read_line(&mut solo).expect("ok"), b"ok\n");
+
+        // No `message ...` should follow for the sole broadcaster.
+        solo.set_read_timeout(Some(Duration::from_millis(300)))
+            .unwrap();
+        let mut buf = [0u8; 32];
+        match solo.read(&mut buf) {
+            Ok(0) => {}
+            Err(e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::TimedOut => {}
+            other => panic!("broadcaster should not hear itself, got {other:?}"),
+        }
 
         stop_server(running, handle);
     }

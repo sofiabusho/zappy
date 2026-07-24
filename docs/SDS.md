@@ -82,7 +82,7 @@ All lines end with `\n`.
 | `time` | `action_duration(t, cost)` = `cost/t` seconds (S06 / RQ10) |
 | `ritual` | Enchantment eligibility, consumption, level-up |
 | `broadcast` | Shortest toroidal path → sound sector K ∈ {0..8} |
-| `eggs` | Fork → ship timer → slot / connect_nbr |
+| `eggs` | Fork → ship timer 600/t → `add_slot` + spawn-at-egg on next join (`server/src/eggs.rs`) |
 | `win` | Detect ≥6 teammates at level 8 |
 | `gui` (optional crate area) | Feed map/entity events to graphic client |
 
@@ -188,17 +188,18 @@ Empty tiles are empty fields (e.g. `{, , , }` on a bare level-1 view).
 ## 9. Sound direction K
 
 - Same tile → `K = 0`.
-- Else shortest signed deltas on the torus; map arrival into sectors 1..8
-  relative to the **receiver's** facing:
+- Else shortest toroidal path; map arrival into sectors 1..8 relative to the
+  **receiver's** facing. Subject numbering is **counter-clockwise** from front:
   ```text
-  8 1 2
-  7 0 3
-  6 5 4
+       2  1  8
+       3  P  7
+       4  5  6
   ```
-  (1 = front, then clockwise with north-up; matches kick cardinals).
-- Implementation: `server/src/sound.rs` (`sound_k`, `broadcast_targets`).
+  (front `1`, left `3`, back `5`, right `7`). Implementation: `server/src/broadcast.rs`.
 - Sender replies `ok`; all **other** players get `message <K>,<text>\n` (AQ32/AQ33).
-- **Kick `moving <K>` (S11):** K is the push direction relative to the **victim's** facing, using the same cardinal sectors (1 front, 3 right, 5 back, 7 left). Resources on the tile are never moved. Kick returns `ko` if no co-tile players or if any occupant has `in_ritual`.
+- **Kick `moving <K>` (S11):** push direction relative to the **victim's** facing
+  using odd sectors (1 front, 3 right, 5 back, 7 left — clockwise cardinals as in
+  `kick.rs`). Broadcast and kick conventions differ; do not unify casually.
 
 ## 10. Directory contracts
 

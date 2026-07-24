@@ -194,6 +194,11 @@ impl Player {
     pub fn spawn(id: u32, team: impl Into<String>, world: &World, rng: &mut SeededRng) -> Self {
         let x = rng.gen_index(world.width() as usize) as u32;
         let y = rng.gen_index(world.height() as usize) as u32;
+        Self::spawn_at(id, team, x, y, rng)
+    }
+
+    /// Spawn at a fixed tile (ship/egg hatch site) with a random facing.
+    pub fn spawn_at(id: u32, team: impl Into<String>, x: u32, y: u32, rng: &mut SeededRng) -> Self {
         let orient = Orientation::ALL[rng.gen_index(Orientation::ALL.len())];
         Self {
             id,
@@ -340,6 +345,21 @@ impl PlayerSet {
         let id = self.next_id;
         self.next_id = self.next_id.wrapping_add(1);
         let player = Player::spawn(id, team, world, rng);
+        self.players.insert(id, player);
+        id
+    }
+
+    /// Spawn on a fixed tile (after a ship arrives for this team).
+    pub fn spawn_at(
+        &mut self,
+        team: impl Into<String>,
+        x: u32,
+        y: u32,
+        rng: &mut SeededRng,
+    ) -> u32 {
+        let id = self.next_id;
+        self.next_id = self.next_id.wrapping_add(1);
+        let player = Player::spawn_at(id, team, x, y, rng);
         self.players.insert(id, player);
         id
     }
