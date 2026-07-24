@@ -179,7 +179,7 @@ Tracks are **focus areas**, not parallel merge lanes.
 
 | ID | Status | Ticket | Size | Deps | Coverage | Claimed by |
 |----|--------|--------|------|------|----------|------------|
-| G01 | ⬜ | GUI↔server connect path + render empty/live map | L | S04, A01 | RQ21, AQ15 | |
+| G01 | 🟡 | GUI↔server connect path + render empty/live map | L | S04, A01 | RQ21, AQ15 | |
 | G02 | ⬜ | Icons: players, food, all stone types visible | M | G01 | RQ21, AQ18, AQ28 | |
 | G03 | ⬜ | Click square → floating details with counts | M | G02 | RQ21, AQ16, AQ17 | |
 | G04 | ⬜ | Click player → characteristics overlay | M | G02 | RQ21, AQ19 | |
