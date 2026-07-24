@@ -14,6 +14,12 @@ import {
   resourceIconOrder,
 } from "./icons.js";
 import { LEGEND_HEIGHT, computeGridLayout } from "./layout.js";
+import {
+  soundAlpha,
+  soundArrivalVector,
+  soundRippleRadius,
+  type SoundEvent,
+} from "./sound.js";
 import { type WorldState } from "./world.js";
 
 const BACKGROUND = "#0c1b12";
@@ -22,6 +28,8 @@ const EMPTY_TEXT = "#6a8c76";
 const LEGEND_BG = "#081109";
 const LEGEND_TEXT = "#cfe8d8";
 const SELECT_STROKE = "#cfe8d8";
+const SOUND_STROKE = "#7ec8ff";
+const SOUND_FILL = "rgba(126, 200, 255, 0.15)";
 
 export class CanvasRenderer {
   private readonly ctx: CanvasRenderingContext2D;
@@ -47,7 +55,7 @@ export class CanvasRenderer {
   }
 
   /** Redraw the whole frame for the current world state. */
-  render(world: WorldState): void {
+  render(world: WorldState, now = performance.now()): void {
     const { width, height } = this.canvas;
     const ctx = this.ctx;
 
@@ -69,9 +77,123 @@ export class CanvasRenderer {
     this.drawGrid(offsetX, offsetY, cols, rows, cell);
     this.drawTileIcons(world, offsetX, offsetY, cols, rows, cell);
     this.drawPlayers(world, offsetX, offsetY, cell);
+    this.drawSounds(world, offsetX, offsetY, cell, now);
     this.drawSelection(offsetX, offsetY, cell);
     this.drawPlayerSelection(world, offsetX, offsetY, cell);
     this.drawLegend(width, height);
+  }
+
+  private drawSounds(
+    world: WorldState,
+    offsetX: number,
+    offsetY: number,
+    cell: number,
+    now: number,
+  ): void {
+    const events = world.activeSounds(now);
+    for (const ev of events) {
+      const alpha = soundAlpha(ev.bornAt, now);
+      if (alpha <= 0) {
+        continue;
+      }
+      if (ev.kind === "emit") {
+        this.drawEmitRipple(ev, offsetX, offsetY, cell, now, alpha);
+      } else if (ev.k !== null && ev.toId !== null) {
+        this.drawHearArrow(world, ev, offsetX, offsetY, cell, alpha);
+      }
+    }
+  }
+
+  private drawEmitRipple(
+    ev: SoundEvent,
+    offsetX: number,
+    offsetY: number,
+    cell: number,
+    now: number,
+    alpha: number,
+  ): void {
+    const ctx = this.ctx;
+    const cx = offsetX + ev.x * cell + cell / 2;
+    const cy = offsetY + ev.y * cell + cell / 2;
+    const r = soundRippleRadius(ev.bornAt, now, cell);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = SOUND_STROKE;
+    ctx.fillStyle = SOUND_FILL;
+    ctx.lineWidth = Math.max(1.5, cell / 18);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Inner pulse
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(2, r * 0.35), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  private drawHearArrow(
+    world: WorldState,
+    ev: SoundEvent,
+    offsetX: number,
+    offsetY: number,
+    cell: number,
+    alpha: number,
+  ): void {
+    if (ev.toId === null || ev.k === null) {
+      return;
+    }
+    const player = world.playerById(ev.toId);
+    if (player === null) {
+      return;
+    }
+    const ctx = this.ctx;
+    const cx = offsetX + player.x * cell + cell / 2;
+    const cy = offsetY + player.y * cell + cell / 2;
+    const vec = soundArrivalVector(ev.k, player.orientation);
+    const len = cell * 0.42;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = SOUND_STROKE;
+    ctx.fillStyle = SOUND_STROKE;
+    ctx.lineWidth = Math.max(1.5, cell / 20);
+
+    if (ev.k === 0) {
+      // Same-tile sound: concentric rings on the listener.
+      ctx.beginPath();
+      ctx.arc(cx, cy, cell * 0.28, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, cell * 0.18, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      const tipX = cx + vec.dx * len;
+      const tipY = cy + vec.dy * len;
+      const baseX = cx + vec.dx * len * 0.25;
+      const baseY = cy + vec.dy * len * 0.25;
+      ctx.beginPath();
+      ctx.moveTo(baseX, baseY);
+      ctx.lineTo(tipX, tipY);
+      ctx.stroke();
+      // Arrow head
+      const orthoX = -vec.dy;
+      const orthoY = vec.dx;
+      const head = cell * 0.12;
+      ctx.beginPath();
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(tipX - vec.dx * head + orthoX * head * 0.6, tipY - vec.dy * head + orthoY * head * 0.6);
+      ctx.lineTo(tipX - vec.dx * head - orthoX * head * 0.6, tipY - vec.dy * head - orthoY * head * 0.6);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Label K next to the player.
+    ctx.font = `${Math.max(10, Math.floor(cell / 3.5))}px system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText(`K=${ev.k}`, cx, cy - cell * 0.35);
+    ctx.restore();
   }
 
   private drawPlayerSelection(

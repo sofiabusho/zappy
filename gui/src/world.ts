@@ -1,18 +1,22 @@
 /**
- * Live world model fed by the server → GUI protocol (G01 / G02).
+ * Live world model fed by the server → GUI protocol (G01–G05).
  *
- * Holds map dimensions, per-tile resource counts, known teams, and player
- * entities for icon rendering. The grid is toroidal (RQ03 / AQ10): coordinate
- * lookups wrap in both axes so the renderer and later click-hit-testing never
- * index out of range.
+ * Holds map, players, and recent sound/broadcast events for visualization.
  */
 
 import {
   type GuiMessage,
   type GuiPlayer,
   type TileContent,
+  defaultPlayerInventory,
   emptyTile,
 } from "./protocol.js";
+import {
+  SOUND_TTL_MS,
+  isValidSoundK,
+  type SoundEvent,
+  type SoundK,
+} from "./sound.js";
 
 export class WorldState {
   private width = 0;
@@ -20,33 +24,40 @@ export class WorldState {
   private tiles: TileContent[] = [];
   private readonly teams = new Set<string>();
   private readonly players = new Map<number, GuiPlayer>();
+  private sounds: SoundEvent[] = [];
+  private nextSoundId = 1;
+  private nowFn: () => number = () =>
+    typeof performance !== "undefined" ? performance.now() : Date.now();
 
-  /** Map width in tiles (0 until `msz` arrives). */
+  /** Inject a clock (tests). */
+  setNow(fn: () => number): void {
+    this.nowFn = fn;
+  }
+
   get mapWidth(): number {
     return this.width;
   }
 
-  /** Map height in tiles (0 until `msz` arrives). */
   get mapHeight(): number {
     return this.height;
   }
 
-  /** True once the map size is known and a grid can be drawn. */
   isReady(): boolean {
     return this.width > 0 && this.height > 0;
   }
 
-  /** Known team names, in insertion order. */
   teamNames(): string[] {
     return [...this.teams];
   }
 
-  /** Living players currently tracked for icons. */
   allPlayers(): GuiPlayer[] {
     return [...this.players.values()];
   }
 
-  /** Players currently on tile `(x, y)` (toroidal). */
+  playerById(id: number): GuiPlayer | null {
+    return this.players.get(id) ?? null;
+  }
+
   playersAt(x: number, y: number): GuiPlayer[] {
     if (!this.isReady()) {
       return [];
@@ -56,7 +67,12 @@ export class WorldState {
     return this.allPlayers().filter((p) => p.x === wx && p.y === wy);
   }
 
-  /** Wrap a coordinate onto the torus; returns a value in `[0, size)`. */
+  /** Active (non-expired) sound / broadcast events for drawing + feed. */
+  activeSounds(now = this.nowFn()): SoundEvent[] {
+    this.pruneSounds(now);
+    return [...this.sounds];
+  }
+
   private static wrap(value: number, size: number): number {
     if (size <= 0) {
       return 0;
@@ -64,10 +80,6 @@ export class WorldState {
     return ((value % size) + size) % size;
   }
 
-  /**
-   * Tile content at `(x, y)` with toroidal wrapping, or `null` if the map size
-   * is not known yet.
-   */
   tileAt(x: number, y: number): TileContent | null {
     if (!this.isReady()) {
       return null;
@@ -82,6 +94,7 @@ export class WorldState {
     this.height = height;
     this.tiles = Array.from({ length: width * height }, emptyTile);
     this.players.clear();
+    this.sounds = [];
   }
 
   private upsertPlayer(player: GuiPlayer): void {
@@ -90,12 +103,31 @@ export class WorldState {
     }
     this.players.set(player.id, {
       ...player,
+      inventory: { ...player.inventory },
       x: WorldState.wrap(player.x, this.width),
       y: WorldState.wrap(player.y, this.height),
     });
   }
 
-  /** Fold one parsed message into the world state. */
+  private pruneSounds(now: number): void {
+    this.sounds = this.sounds.filter((s) => now - s.bornAt < SOUND_TTL_MS);
+  }
+
+  private pushSound(partial: Omit<SoundEvent, "id" | "bornAt">): void {
+    const now = this.nowFn();
+    this.pruneSounds(now);
+    this.sounds.push({
+      ...partial,
+      id: this.nextSoundId,
+      bornAt: now,
+    });
+    this.nextSoundId += 1;
+    // Cap feed length.
+    if (this.sounds.length > 24) {
+      this.sounds = this.sounds.slice(-24);
+    }
+  }
+
   apply(message: GuiMessage): void {
     switch (message.kind) {
       case "map-size":
@@ -125,13 +157,13 @@ export class WorldState {
           orientation: message.orientation,
           level: message.level,
           team: message.team,
+          inventory: defaultPlayerInventory(),
         });
         break;
 
       case "player-pos": {
         const existing = this.players.get(message.id);
         if (existing === undefined) {
-          // Position update before spawn — track with placeholder metadata.
           this.upsertPlayer({
             id: message.id,
             x: message.x,
@@ -139,6 +171,7 @@ export class WorldState {
             orientation: message.orientation,
             level: 1,
             team: "?",
+            inventory: defaultPlayerInventory(),
           });
           break;
         }
@@ -151,9 +184,73 @@ export class WorldState {
         break;
       }
 
+      case "player-level": {
+        const existing = this.players.get(message.id);
+        if (existing === undefined) {
+          break;
+        }
+        this.upsertPlayer({ ...existing, level: message.level });
+        break;
+      }
+
+      case "player-inventory": {
+        const existing = this.players.get(message.id);
+        if (existing === undefined) {
+          this.upsertPlayer({
+            id: message.id,
+            x: message.x,
+            y: message.y,
+            orientation: 1,
+            level: 1,
+            team: "?",
+            inventory: { ...message.inventory },
+          });
+          break;
+        }
+        this.upsertPlayer({
+          ...existing,
+          x: message.x,
+          y: message.y,
+          inventory: { ...message.inventory },
+        });
+        break;
+      }
+
       case "player-dead":
         this.players.delete(message.id);
         break;
+
+      case "broadcast": {
+        const from = this.players.get(message.fromId);
+        this.pushSound({
+          kind: "emit",
+          fromId: message.fromId,
+          toId: null,
+          k: null,
+          text: message.text,
+          x: from?.x ?? 0,
+          y: from?.y ?? 0,
+        });
+        break;
+      }
+
+      case "sound": {
+        if (!isValidSoundK(message.k)) {
+          break;
+        }
+        const k = message.k as SoundK;
+        const to = this.players.get(message.toId);
+        this.pushSound({
+          kind: "hear",
+          fromId: null,
+          toId: message.toId,
+          k,
+          text: message.text,
+          x: to?.x ?? 0,
+          y: to?.y ?? 0,
+        });
+        break;
+      }
 
       case "unknown":
         break;

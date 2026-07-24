@@ -138,6 +138,57 @@
         font-size: 0.65rem;
         color: #5f8570;
       }
+      #sound-feed {
+        position: absolute;
+        right: 0.75rem;
+        top: 0.75rem;
+        z-index: 5;
+        width: min(16rem, 42vw);
+        max-height: min(40%, 16rem);
+        overflow: auto;
+        padding: 0.55rem 0.65rem 0.45rem;
+        background: rgba(8, 17, 9, 0.88);
+        border: 1px solid #2f5a40;
+        color: #cfe8d8;
+        pointer-events: none;
+      }
+      #sound-feed h2 {
+        margin: 0 0 0.35rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+      }
+      #sound-feed .sound-feed-empty {
+        margin: 0;
+        font-size: 0.75rem;
+        color: #5f8570;
+      }
+      #sound-feed .sound-feed-empty[hidden] {
+        display: none;
+      }
+      #sound-feed-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      #sound-feed-list li {
+        display: flex;
+        flex-direction: column;
+        gap: 0.1rem;
+        padding: 0.3rem 0;
+        border-top: 1px solid #1f3b29;
+        font-size: 0.75rem;
+      }
+      #sound-feed-list li:first-child {
+        border-top: none;
+      }
+      #sound-feed-list .sound-badge {
+        color: #7ec8ff;
+        font-variant-numeric: tabular-nums;
+      }
+      #sound-feed-list .sound-text {
+        color: #e8fff0;
+        word-break: break-word;
+      }
     </style>
   </head>
   <body>

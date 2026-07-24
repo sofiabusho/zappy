@@ -1,9 +1,10 @@
 /**
- * Offline demo stream (G01 / G02).
+ * Offline demo stream (G01–G05).
  *
  * Produces a deterministic sequence of server → GUI protocol lines so the map
- * renders with food, all six stone types, and players visible with no server
- * attached. Used when no `?ws=` bridge URL is supplied.
+ * renders with food, all six stone types, players, and sample broadcasts /
+ * sound sectors with no server attached. Used when no `?ws=` bridge URL is
+ * supplied.
  */
 
 import { RESOURCE_NAMES } from "./protocol.js";
@@ -73,6 +74,12 @@ export function demoStream(width = 12, height = 12): string[] {
   lines.push("pin #1 6 7 10 0 0 0 0 0 0");
   lines.push("pin #2 8 4 8 1 0 0 0 1 0");
   lines.push("plv #2 2");
+
+  // Broadcasts + directional hears (AQ20 / G05).
+  lines.push("pbc #1 meetup at jade");
+  lines.push("pic #2 3 meetup at jade");
+  lines.push("pbc #2 ack");
+  lines.push("pic #1 0 ack");
 
   return lines;
 }

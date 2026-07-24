@@ -1,9 +1,9 @@
 /**
- * GUI entry point (G01–G04).
+ * GUI entry point (G01–G05).
  *
  * Click a player icon for characteristics (G04 / AQ19), or a bare square for
- * resource counts (G03). Player hits take priority when the cursor is on an
- * icon.
+ * resource counts (G03). Broadcast/sound events draw ripples + K arrows and
+ * fill the sound feed (G05 / AQ20).
  */
 
 import { parseGuiLine, emptyTile } from "./protocol.js";
@@ -25,6 +25,7 @@ import {
 import { buildTileDetails } from "./tileDetails.js";
 import { buildPlayerDetails } from "./playerDetails.js";
 import { PlayerOverlay, TileOverlay } from "./overlay.js";
+import { SoundFeed } from "./soundFeed.js";
 
 function requireElement<T extends HTMLElement>(id: string): T {
   const el = document.getElementById(id);
@@ -53,28 +54,42 @@ function start(): void {
   const renderer = new CanvasRenderer(canvas);
   const tileOverlay = new TileOverlay(mainEl);
   const playerOverlay = new PlayerOverlay(mainEl);
+  const soundFeed = new SoundFeed(mainEl);
+
+  let animating = false;
+
+  const paint = (now: number): void => {
+    renderer.render(world, now);
+    soundFeed.update(world.activeSounds(now));
+    dimsEl.textContent = world.isReady()
+      ? `${world.mapWidth}×${world.mapHeight}`
+      : "—";
+  };
+
+  const tick = (now: number): void => {
+    paint(now);
+    if (world.activeSounds(now).length > 0) {
+      window.requestAnimationFrame(tick);
+    } else {
+      animating = false;
+    }
+  };
+
+  /** One frame now; keep looping while sound events are within TTL. */
+  const scheduleRender = (): void => {
+    if (animating) {
+      return;
+    }
+    animating = true;
+    window.requestAnimationFrame(tick);
+  };
 
   const resize = (): void => {
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     canvas.width = Math.max(1, Math.floor(rect.width * dpr));
     canvas.height = Math.max(1, Math.floor(rect.height * dpr));
-    renderer.render(world);
-  };
-
-  let frameQueued = false;
-  const scheduleRender = (): void => {
-    if (frameQueued) {
-      return;
-    }
-    frameQueued = true;
-    window.requestAnimationFrame(() => {
-      frameQueued = false;
-      renderer.render(world);
-      dimsEl.textContent = world.isReady()
-        ? `${world.mapWidth}×${world.mapHeight}`
-        : "—";
-    });
+    scheduleRender();
   };
 
   const dismissOverlays = (): void => {

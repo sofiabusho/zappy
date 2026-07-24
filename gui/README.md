@@ -3,8 +3,8 @@
 TypeScript + HTML5 Canvas graphic client for Zappy. **No game engines.**
 
 G01: connect + map. G02: icons. G03: click square → resource counts.
-**G04: click player → characteristics overlay** (team, level, position,
-orientation, inventory). Sound viz is G05.
+G04: click player → characteristics. **G05: broadcast/sound visualization**
+(ripples, K-direction arrows, sound feed).
 
 ## Run
 
@@ -13,38 +13,36 @@ npm install
 npm run build
 python3 -m http.server 8090
 # open http://127.0.0.1:8090/index.html
-# click a player chevron → floating characteristics panel
+# offline demo shows emit ripples + K arrows + right-side sound feed
+# click a player chevron → characteristics (G04)
 # click a bare square → resource counts (G03)
 ```
-
-Offline demo (no `?ws=`) includes players with `pin`/`plv` so characteristics
-are inspectable without a live server.
 
 ## Lint / test
 
 ```bash
 npm run lint
-npm test        # G02 + G03 + G04
+npm test        # G02 + G03 + G04 + G05
 ```
 
-## Player characteristics (G04 / AQ19)
+## Sounds (G05 / AQ20)
 
-Clicking a player icon opens a floating panel with:
+When the server (or demo) emits:
 
-- id, team, level, map position, orientation (N/E/S/W)
-- inventory counts for food + all six stones
+- `pbc #<id> <text>` — ripple at the emitter’s tile + feed entry
+- `pic #<id> <K> <text>` — arrow / rings on the listener for sector K (0..8)
 
-Player hits win over square hits when the cursor is on an icon.
+K matches the subject sound ring (SDS §9). Same-tile broadcasts use `K=0`
+(concentric rings). Events fade over a few seconds.
 
 ## Server → GUI protocol (subset)
 
 | Line | Meaning |
 |------|---------|
 | `msz` / `bct` / `tna` | Map + teams (G01) |
-| `pnw #<id> <X> <Y> <O> <L> <team>` | Player spawn |
-| `ppo #<id> <X> <Y> <O>` | Move / reorient |
-| `plv #<id> <L>` | Level update (G04) |
-| `pin #<id> <X> <Y> <food> … <ammolite>` | Inventory + position (G04) |
-| `pdi #<id>` | Remove player |
+| `pnw` / `ppo` / `pdi` | Players (G02) |
+| `plv` / `pin` | Level + inventory (G04) |
+| `pbc #<id> <text>` | Broadcast emit (G05) |
+| `pic #<id> <K> <text>` | Listener hears from sector K (G05) |
 
 See [`AGENTS.md`](../AGENTS.md) and [`docs/SDS.md`](../docs/SDS.md) §12.

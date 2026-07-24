@@ -5,8 +5,8 @@
  * documented server↔GUI side-channel (see `docs/SDS.md` §12). It is a
  * line-based, `\n`-terminated ASCII protocol that never touches the AI player
  * protocol. Map subset: `msz`, `bct`, `tna`. Player subset (G02/G04): `pnw`,
- * `ppo`, `plv`, `pin`, `pdi`. Unknown verbs stay `{ kind: "unknown" }` so G05
- * can extend the stream without breaking older renderers.
+ * `ppo`, `plv`, `pin`, `pdi`. Sound subset (G05): `pbc`, `pic`. Unknown verbs
+ * stay `{ kind: "unknown" }`.
  *
  * Resource ordering matches the inventory contract used everywhere else in the
  * project (`docs/SDS.md` §5): food, jade, peridot, amber, amethyst, garnet,
@@ -94,6 +94,8 @@ export type GuiMessage =
       inventory: TileContent;
     }
   | { kind: "player-dead"; id: number }
+  | { kind: "broadcast"; fromId: number; text: string }
+  | { kind: "sound"; toId: number; k: number; text: string }
   | { kind: "unknown"; raw: string };
 
 /** All-zero tile content. */
@@ -260,6 +262,27 @@ export function parseGuiLine(line: string): GuiMessage {
         return { kind: "unknown", raw: line };
       }
       return { kind: "player-dead", id };
+    }
+
+    case "pbc": {
+      // pbc #<fromId> <text…>  — broadcast emitted by a player (GUI ripple)
+      const fromId = parsePlayerId(parts[1]);
+      if (fromId === null || parts.length < 3) {
+        return { kind: "unknown", raw: line };
+      }
+      const text = parts.slice(2).join(" ");
+      return { kind: "broadcast", fromId, text };
+    }
+
+    case "pic": {
+      // pic #<toId> <K> <text…>  — listener hears sound from sector K
+      const toId = parsePlayerId(parts[1]);
+      const k = parseCount(parts[2]);
+      if (toId === null || k === null || k > 8 || parts.length < 4) {
+        return { kind: "unknown", raw: line };
+      }
+      const text = parts.slice(3).join(" ");
+      return { kind: "sound", toId, k, text };
     }
 
     default:
