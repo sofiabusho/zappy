@@ -275,6 +275,7 @@ pub fn serve_listener(
     eprintln!("server: {}", world.summary_line());
     let mut players = PlayerSet::new();
     let mut eggs = crate::eggs::EggSet::new();
+    let mut rituals = crate::ritual::RitualSet::new();
     let mut rng = SeededRng::new(world.seed ^ 0x0C0F_FEE0_0D15_CAFE);
     let t = config.t;
     let game_start = Instant::now();
@@ -321,7 +322,8 @@ pub fn serve_listener(
                     &mut slots,
                     &mut players,
                     &mut eggs,
-                    &world,
+                    &mut rituals,
+                    &mut world,
                     &mut rng,
                     token,
                     event,
@@ -332,11 +334,21 @@ pub fn serve_listener(
             }
         }
 
+        tick_ritual_begins(
+            &mut poll,
+            &mut connections,
+            &mut players,
+            &mut rituals,
+            &world,
+            t,
+        );
+
         tick_command_completions(
             &mut poll,
             &mut connections,
             &mut players,
             &mut eggs,
+            &mut rituals,
             &slots,
             &mut world,
             game_start,
@@ -350,6 +362,7 @@ pub fn serve_listener(
             &mut connections,
             &mut slots,
             &mut players,
+            &mut rituals,
             game_start,
             &mut last_game_tu,
             t,
@@ -402,11 +415,13 @@ fn drop_connection(
     connections: &mut HashMap<Token, Connection>,
     slots: &mut TeamSlots,
     players: &mut PlayerSet,
+    rituals: &mut crate::ritual::RitualSet,
     token: Token,
 ) {
     if let Some(mut conn) = connections.remove(&token) {
         if let Some(id) = conn.player_id.take() {
             players.remove(id);
+            rituals.on_player_gone(id, players);
         }
         if let Some(team) = conn.team.take() {
             slots.release(&team);
@@ -432,7 +447,8 @@ fn handle_connection_event(
     slots: &mut TeamSlots,
     players: &mut PlayerSet,
     eggs: &mut crate::eggs::EggSet,
-    world: &World,
+    rituals: &mut crate::ritual::RitualSet,
+    world: &mut World,
     rng: &mut SeededRng,
     token: Token,
     event: &mio::event::Event,
@@ -514,7 +530,7 @@ fn handle_connection_event(
     }
 
     if drop_conn {
-        drop_connection(poll, connections, slots, players, token);
+        drop_connection(poll, connections, slots, players, rituals, token);
     }
 
     Ok(())
@@ -544,6 +560,59 @@ fn ingest_player_commands(conn: &mut Connection, players: &mut PlayerSet, t: u32
     queued_ko
 }
 
+/// When `enchantment` becomes the active command, start the ritual or abort with `ko`.
+fn tick_ritual_begins(
+    poll: &mut Poll,
+    connections: &mut HashMap<Token, Connection>,
+    players: &mut PlayerSet,
+    rituals: &mut crate::ritual::RitualSet,
+    world: &World,
+    t: u32,
+) {
+    let now = Instant::now();
+    let tokens: Vec<Token> = connections.keys().copied().collect();
+    for token in tokens {
+        let Some(player_id) = connections.get(&token).and_then(|c| c.player_id) else {
+            continue;
+        };
+        let is_enchantment = players
+            .get(player_id)
+            .and_then(|p| p.queue.peek_active())
+            .is_some_and(|c| matches!(c, Command::Enchantment));
+        if !is_enchantment {
+            continue;
+        }
+        if rituals.get_by_starter(player_id).is_some() {
+            continue;
+        }
+        match rituals.try_begin(player_id, players, world) {
+            Ok(participants) => {
+                for pid in participants {
+                    deliver_to_player(poll, connections, pid, crate::ritual::EVOLUTION_IN_PROGRESS);
+                }
+            }
+            Err(()) => {
+                if let Some(player) = players.get_mut(player_id) {
+                    let _ = player.queue.abort_active(now, t);
+                }
+                if let Some(conn) = connections.get_mut(&token) {
+                    conn.queue_out(KO.as_bytes());
+                    let _ = set_interest(
+                        poll,
+                        conn,
+                        token,
+                        Interest::READABLE.add(Interest::WRITABLE),
+                    );
+                    let _ = conn.flush_out();
+                    if !conn.pending_out() {
+                        let _ = set_interest(poll, conn, token, Interest::READABLE);
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Finish delayed commands and queue their protocol replies.
 #[allow(clippy::too_many_arguments)]
 fn tick_command_completions(
@@ -551,6 +620,7 @@ fn tick_command_completions(
     connections: &mut HashMap<Token, Connection>,
     players: &mut PlayerSet,
     eggs: &mut crate::eggs::EggSet,
+    rituals: &mut crate::ritual::RitualSet,
     slots: &TeamSlots,
     world: &mut World,
     game_start: Instant,
@@ -637,6 +707,28 @@ fn tick_command_completions(
                     conn.queue_out(b"ok\n");
                     wrote = true;
                 }
+                Command::Enchantment => match rituals.try_complete(player_id, players, world) {
+                    Ok((new_level, participants)) => {
+                        let line = crate::ritual::current_level_line(new_level);
+                        for pid in participants {
+                            if pid != player_id {
+                                deliver_to_player(poll, connections, pid, line.as_bytes());
+                            }
+                        }
+                        let Some(conn) = connections.get_mut(&token) else {
+                            break;
+                        };
+                        conn.queue_out(line.as_bytes());
+                        wrote = true;
+                    }
+                    Err(()) => {
+                        let Some(conn) = connections.get_mut(&token) else {
+                            break;
+                        };
+                        conn.queue_out(b"ko\n");
+                        wrote = true;
+                    }
+                },
                 other => {
                     let Some(player) = players.get_mut(player_id) else {
                         break;
@@ -720,8 +812,12 @@ fn complete_command(
             player.turn_left();
             "ok\n".to_string()
         }
-        Command::See | Command::Kick | Command::Broadcast(_) | Command::Fork => {
-            unreachable!("see/kick/broadcast/fork handled in tick_command_completions")
+        Command::See
+        | Command::Kick
+        | Command::Broadcast(_)
+        | Command::Fork
+        | Command::Enchantment => {
+            unreachable!("see/kick/broadcast/fork/enchantment handled in tick_command_completions")
         }
         Command::Inventory => player.inventory_reply(),
         Command::Pick(obj) => {
@@ -738,7 +834,6 @@ fn complete_command(
                 "ko\n".to_string()
             }
         }
-        Command::Enchantment => "evolution in progress\n".to_string(),
         Command::ConnectNbr => format!("{}\n", slots.free(&player.team)),
     }
 }
@@ -756,11 +851,13 @@ fn tick_ships(eggs: &mut crate::eggs::EggSet, slots: &mut TeamSlots, game_start:
 }
 
 /// Drain life by elapsed game time units; starve → `death\n` + disconnect (S10).
+#[allow(clippy::too_many_arguments)]
 fn tick_hunger_and_deaths(
     poll: &mut Poll,
     connections: &mut HashMap<Token, Connection>,
     slots: &mut TeamSlots,
     players: &mut PlayerSet,
+    rituals: &mut crate::ritual::RitualSet,
     game_start: Instant,
     last_game_tu: &mut u64,
     t: u32,
@@ -806,7 +903,7 @@ fn tick_hunger_and_deaths(
                 conn.player_id.map(|id| id.to_string()).unwrap_or_default()
             );
         }
-        drop_connection(poll, connections, slots, players, token);
+        drop_connection(poll, connections, slots, players, rituals, token);
     }
 }
 

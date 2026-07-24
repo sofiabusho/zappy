@@ -7,7 +7,8 @@
 //! (S06) own the scheduler and per-player request queue; `vision` (S08) formats
 //! `see` replies; `kick` (S11) pushes co-tile players with `moving <K>`;
 //! `broadcast` (S12) delivers directional `message <K>,<text>` sound;
-//! `eggs` (S13) tracks fork ships and hatch slots.
+//! `eggs` (S13) tracks fork ships and hatch slots;
+//! `ritual` (S14) runs enchantment elevation.
 
 pub mod broadcast;
 pub mod cli;
@@ -16,6 +17,7 @@ pub mod eggs;
 pub mod kick;
 pub mod net;
 pub mod player;
+pub mod ritual;
 pub mod time;
 pub mod vision;
 pub mod world;

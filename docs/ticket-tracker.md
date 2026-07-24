@@ -26,8 +26,8 @@
 
 | Field | Value |
 |-------|-------|
-| Last push | S13 fork/ship — agent |
-| Who’s up | Next: claim **S14** (ritual) |
+| Last push | S14 ritual — agent |
+| Who’s up | Next: claim **S15** (win) or **S16** (harden) |
 | Note | Serial turns only; do not start a second 🟢 |
 
 ## 3. Tracks
@@ -161,8 +161,8 @@ Tracks are **focus areas**, not parallel merge lanes.
 | S11 | ✅ | `kick` + `moving <K>`; no kick during ritual; resources unaffected | M | S07 | RQ14 | agent |
 | S12 | ✅ | `broadcast` + directional `message <K>,<text>` (shortest path) | L | S07 | RQ15, AQ32, AQ33 | software-sappho |
 | S13 | ✅ | `fork` + ship timer + `connect_nbr` slots | M | S05, S06 | RQ13, AQ26 | agent |
-| S14 | 🟡 | `enchantment` / ritual table + mid-ritual alone restart | L | S09, S10 | RQ09, AQ25, AQ31 | |
-| S15 | ⬜ | Win detection: 6 teammates at level 8 | S | S14 | RQ02 | |
+| S14 | ✅ | `enchantment` / ritual table + mid-ritual alone restart | L | S09, S10 | RQ09, AQ25, AQ31 | agent |
+| S15 | 🟡 | Win detection: 6 teammates at level 8 | S | S14 | RQ02 | |
 | S16 | ⬜ | Harden: no exec paths; bind conflict message; local stress sanity | M | S02 | RQ16, AQ03, AQ04, AQ05 | |
 
 ### Sprint 3 — AI client
@@ -295,19 +295,20 @@ Tracks are **focus areas**, not parallel merge lanes.
 
 ## 10. Immediate next work queue
 
-1. ~~**S01**–**S13**~~ ✅ done (through fork/ship)
-2. **S14** — enchantment ritual (🟡 Ready; Deps S09+S10 ✅)
+1. ~~**S01**–**S14**~~ ✅ done (through ritual)
+2. **S15** — win detection (🟡 Ready; Deps S14 ✅)
+3. **S16** — harden (⬜; Deps S02 ✅)
 
 ## 11. Summary by track
 
 | Track | Total | ✅ | 🟢 | 🟡/⬜ | 🔴 |
 |-------|------:|--:|--:|-----:|--:|
 | A Bootstrap | 4 | 4 | 0 | 0 | 0 |
-| S Server | 16 | 13 | 0 | 3 | 0 |
+| S Server | 16 | 14 | 0 | 2 | 0 |
 | C Client | 5 | 0 | 0 | 5 | 0 |
 | G Graphic | 5 | 0 | 0 | 5 | 0 |
 | I Integration | 2 | 0 | 0 | 2 | 0 |
 | B Bonus | 4 | 0 | 0 | 4 | 0 |
-| **All** | **36** | **17** | **0** | **19** | **0** |
+| **All** | **36** | **18** | **0** | **18** | **0** |
 
 Core (non-bonus) tickets: **32**. Bonus: **4**.

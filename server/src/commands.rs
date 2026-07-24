@@ -139,6 +139,21 @@ impl CmdQueue {
         self.busy_until
     }
 
+    /// Command currently executing (delay not yet elapsed), if any.
+    pub fn peek_active(&self) -> Option<&Command> {
+        self.active.as_ref().map(|q| &q.cmd)
+    }
+
+    /// Drop the active command without completing it; start the next waiter.
+    pub fn abort_active(&mut self, now: Instant, t: u32) -> Option<Command> {
+        let finished = self.active.take()?.cmd;
+        self.busy_until = None;
+        if let Some(next) = self.waiting.pop_front() {
+            self.start(next.cmd, now, t);
+        }
+        Some(finished)
+    }
+
     /// Enqueue a valid command. Returns `false` if the buffer is full (ignored).
     pub fn try_enqueue(&mut self, cmd: Command, now: Instant, t: u32) -> bool {
         if self.pending_count() >= MAX_PENDING {

@@ -170,8 +170,16 @@ Empty tiles are empty fields (e.g. `{, , , }` on a bare level-1 view).
 | 7→8 | 6 | 2 | 2 | 2 | 2 | 2 | 1 |
 
 - Same **level** required; teams may mix.
-- One player starts `enchantment`; others join on tile.
-- If participants die mid-ritual and one remains alone → must restart.
+- One player starts `enchantment`; others of the same level on the tile join.
+- Player counts follow this **table** (level 1→2 is solo) despite the prose “two or
+  more” line.
+- **Stone pool:** tile (≤1 per type) **plus** stones in participants' inventories
+  — required because tile hard-caps make multi-count rows otherwise impossible.
+  Implemented in `server/src/ritual.rs`.
+- On start: participants get `evolution in progress\n` and `in_ritual` (blocks kick).
+- After 300/t: consume stones, level += 1, `current level : K\n`. Failure → `ko`.
+- If participants die mid-ritual and remaining count &lt; required → ritual cancelled;
+  starter's completion replies `ko`.
 
 ## 8. Time
 
