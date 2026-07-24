@@ -26,8 +26,8 @@
 
 | Field | Value |
 |-------|-------|
-| Last push | G01 GUI connect+render: documented server→GUI side protocol (`msz`/`bct`/`tna`), toroidal world model, Canvas 2D map render (no game engine), WebSocket-bridge + offline-demo transports; render verified headless — software-sappho |
-| Who’s up | Next: claim **G02** (icons: players, food, all stone types, Deps G01 ✅) — then G03–G05, then I01 |
+| Last push | G02 icons (players/food/six stones) ready to push — agent |
+| Who’s up | Next: claim **G03** (click square details) or **G04** (click player) — both Deps G02 |
 | Note | Serial turns only; do not start a second 🟢 |
 
 ## 3. Tracks
@@ -180,9 +180,9 @@ Tracks are **focus areas**, not parallel merge lanes.
 | ID | Status | Ticket | Size | Deps | Coverage | Claimed by |
 |----|--------|--------|------|------|----------|------------|
 | G01 | ✅ | GUI↔server connect path + render empty/live map | L | S04, A01 | RQ21, AQ15 | software-sappho |
-| G02 | ⬜ | Icons: players, food, all stone types visible | M | G01 | RQ21, AQ18, AQ28 | |
-| G03 | ⬜ | Click square → floating details with counts | M | G02 | RQ21, AQ16, AQ17 | |
-| G04 | ⬜ | Click player → characteristics overlay | M | G02 | RQ21, AQ19 | |
+| G02 | ✅ | Icons: players, food, all stone types visible | M | G01 | RQ21, AQ18, AQ28 | agent |
+| G03 | 🟡 | Click square → floating details with counts | M | G02 | RQ21, AQ16, AQ17 | |
+| G04 | 🟡 | Click player → characteristics overlay | M | G02 | RQ21, AQ19 | |
 | G05 | ⬜ | Broadcast/sound visualization | M | G01, S12 | RQ21, AQ20 | |
 
 ### Sprint 5 — Integration
@@ -302,7 +302,8 @@ Tracks are **focus areas**, not parallel merge lanes.
 5. ~~**C04**~~ ✅ gathering + broadcast meetup + enchantment (gather→rally→evolve)
 6. ~~**C05**~~ ✅ fork strategy (connect_nbr poll → fork ship when family needs a partner slot)
 7. ~~**G01**~~ ✅ GUI connect path + Canvas map render (server→GUI side protocol documented)
-8. Next: **G02** (icons: players, food, all stone types, Deps G01 ✅)
+8. ~~**G02**~~ ✅ icons: players, food, all six stone types (+ legend)
+9. Next: **G03** (click square details) or **G04** (click player overlay) — both Deps G02 ✅
 
 ## 11. Summary by track
 
@@ -311,9 +312,9 @@ Tracks are **focus areas**, not parallel merge lanes.
 | A Bootstrap | 4 | 4 | 0 | 0 | 0 |
 | S Server | 16 | 16 | 0 | 0 | 0 |
 | C Client | 5 | 5 | 0 | 0 | 0 |
-| G Graphic | 5 | 1 | 0 | 4 | 0 |
+| G Graphic | 5 | 2 | 0 | 3 | 0 |
 | I Integration | 2 | 0 | 0 | 2 | 0 |
 | B Bonus | 4 | 0 | 0 | 4 | 0 |
-| **All** | **36** | **26** | **0** | **10** | **0** |
+| **All** | **36** | **27** | **0** | **9** | **0** |
 
 Core (non-bonus) tickets: **32**. Bonus: **4**.

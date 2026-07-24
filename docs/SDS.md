@@ -232,7 +232,7 @@ Autonomous loop: maintain food → explore/see → pick resources → broadcast 
 - Click tile → floating details (counts per resource).
 - Click player → characteristics overlay.
 
-### Server → GUI side protocol (G01)
+### Server → GUI side protocol (G01 / G02)
 
 The raw subject does not fix a GUI wire format, so the graphic track owns a
 **documented side channel** that never touches the AI player protocol (§3).
@@ -248,13 +248,18 @@ Resource fields use the canonical inventory order (§5):
 | `msz <X> <Y>` | S→GUI | Map size; grid becomes drawable |
 | `bct <X> <Y> <f> <jade> <peridot> <amber> <amethyst> <garnet> <ammolite>` | S→GUI | Tile resource counts |
 | `tna <name>` | S→GUI | A team name |
+| `pnw #<id> <X> <Y> <O> <L> <team>` | S→GUI | Player spawn (icon); `O`∈{1..4}=N,E,S,W |
+| `ppo #<id> <X> <Y> <O>` | S→GUI | Player move / reorient |
+| `pdi #<id>` | S→GUI | Player gone — drop icon |
 
-The client (`gui/src/protocol.ts`) parses this subset now and **ignores
-unknown verbs**, so richer entity/broadcast events added for G02–G05 (players,
-inventories, sounds) extend the stream without breaking older renderers. The
-map model (`gui/src/world.ts`) is toroidal (RQ03): tile lookups wrap on both
-axes. Rendering is plain HTML5 Canvas 2D — no game engine (RQ21).
-- Visualize broadcasts/sounds.
+The client (`gui/src/protocol.ts`) parses this subset and **ignores unknown
+verbs**, so G03–G05 (tile/player overlays, broadcasts) can extend the stream
+without breaking older renderers. The map model (`gui/src/world.ts`) is
+toroidal (RQ03). Rendering is plain HTML5 Canvas 2D with distinct icons for
+food, all six stone types, and players, plus a legend strip (RQ21 / AQ18 /
+AQ28) — no game engine.
+
+- Visualize broadcasts/sounds (G05).
 
 ## 13. Testing map
 
