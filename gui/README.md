@@ -2,59 +2,49 @@
 
 TypeScript + HTML5 Canvas graphic client for Zappy. **No game engines.**
 
-G01: connect + map render. G02: icons for players, food, and all six stones.
-**G03: click a square → floating detail panel with per-resource counts** (AQ16 /
-AQ17). Player characteristic overlays (G04) and sound viz (G05) come next.
+G01: connect + map. G02: icons. G03: click square → resource counts.
+**G04: click player → characteristics overlay** (team, level, position,
+orientation, inventory). Sound viz is G05.
 
 ## Run
 
 ```bash
 npm install
-npm run build                 # tsc → dist/ (ESM)
-python3 -m http.server 8090   # or any static file server, from gui/
+npm run build
+python3 -m http.server 8090
 # open http://127.0.0.1:8090/index.html
-# click any map square → floating panel lists food + each stone count
+# click a player chevron → floating characteristics panel
+# click a bare square → resource counts (G03)
 ```
 
-With no query string the client runs an **offline demo** stream so the map
-renders without a server (food + every stone type + players). To watch a live
-game, put a WebSocket bridge in front of the server's GUI channel and pass its
-URL (browsers cannot open raw TCP):
-
-```bash
-# bridge raw TCP <-> WebSocket
-websocat --binary ws-l:127.0.0.1:8090 tcp:127.0.0.1:<gui-port>
-# then open:  http://127.0.0.1:8090/index.html?ws=ws://127.0.0.1:8090
-```
+Offline demo (no `?ws=`) includes players with `pin`/`plv` so characteristics
+are inspectable without a live server.
 
 ## Lint / test
 
 ```bash
-npm run lint    # eslint + tsc --noEmit
-npm test        # tsc + node --test (G02 + G03)
+npm run lint
+npm test        # G02 + G03 + G04
 ```
 
-## Square details (G03)
+## Player characteristics (G04 / AQ19)
 
-Click a tile to open a floating panel that lists **every** resource with its
-count (`food` and all six stones, including zeros) so stone numbers on that
-square are distinguishable. Esc or click outside the grid dismisses it.
+Clicking a player icon opens a floating panel with:
 
-## Server → GUI protocol (this client's subset)
+- id, team, level, map position, orientation (N/E/S/W)
+- inventory counts for food + all six stones
 
-Line-based, `\n`-terminated ASCII. This is a documented **side channel**; it
-never alters the AI player protocol (`docs/SDS.md` §3). Resource order matches
-the inventory contract: `food jade peridot amber amethyst garnet ammolite`.
+Player hits win over square hits when the cursor is on an icon.
+
+## Server → GUI protocol (subset)
 
 | Line | Meaning |
 |------|---------|
-| `msz <X> <Y>` | Map size (width, height). Grid becomes drawable. |
-| `bct <X> <Y> <food> <jade> <peridot> <amber> <amethyst> <garnet> <ammolite>` | Tile content (counts). |
-| `tna <name>` | A team name. |
-| `pnw #<id> <X> <Y> <O> <L> <team>` | Player appears (orientation 1=N…4=W, level, team). |
-| `ppo #<id> <X> <Y> <O>` | Player position / facing update. |
-| `pdi #<id>` | Player dies / disconnects — remove icon. |
-
-Unknown verbs (future broadcast events for G05) are ignored.
+| `msz` / `bct` / `tna` | Map + teams (G01) |
+| `pnw #<id> <X> <Y> <O> <L> <team>` | Player spawn |
+| `ppo #<id> <X> <Y> <O>` | Move / reorient |
+| `plv #<id> <L>` | Level update (G04) |
+| `pin #<id> <X> <Y> <food> … <ammolite>` | Inventory + position (G04) |
+| `pdi #<id>` | Remove player |
 
 See [`AGENTS.md`](../AGENTS.md) and [`docs/SDS.md`](../docs/SDS.md) §12.

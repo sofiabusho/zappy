@@ -4,9 +4,9 @@
  * The raw subject does not fix a GUI wire format, so this file defines the
  * documented server↔GUI side-channel (see `docs/SDS.md` §12). It is a
  * line-based, `\n`-terminated ASCII protocol that never touches the AI player
- * protocol. Map subset: `msz`, `bct`, `tna`. Player subset (G02): `pnw`,
- * `ppo`, `pdi`. Unknown verbs stay `{ kind: "unknown" }` so G03–G05 can extend
- * the stream without breaking older renderers.
+ * protocol. Map subset: `msz`, `bct`, `tna`. Player subset (G02/G04): `pnw`,
+ * `ppo`, `plv`, `pin`, `pdi`. Unknown verbs stay `{ kind: "unknown" }` so G05
+ * can extend the stream without breaking older renderers.
  *
  * Resource ordering matches the inventory contract used everywhere else in the
  * project (`docs/SDS.md` §5): food, jade, peridot, amber, amethyst, garnet,
@@ -32,7 +32,27 @@ export type TileContent = Record<ResourceName, number>;
 /** Cardinal facing used by player spawn/position events (1=N 2=E 3=S 4=W). */
 export type Orientation = 1 | 2 | 3 | 4;
 
-/** A player entity tracked for map icons (G02). */
+export const ORIENTATION_LABELS: Record<Orientation, string> = {
+  1: "N",
+  2: "E",
+  3: "S",
+  4: "W",
+};
+
+/** Starting inventory when a player appears before any `pin` (AQ21 defaults). */
+export function defaultPlayerInventory(): TileContent {
+  return {
+    food: 10,
+    jade: 0,
+    peridot: 0,
+    amber: 0,
+    amethyst: 0,
+    garnet: 0,
+    ammolite: 0,
+  };
+}
+
+/** A player entity tracked for map icons + characteristics (G02 / G04). */
 export interface GuiPlayer {
   id: number;
   x: number;
@@ -40,6 +60,8 @@ export interface GuiPlayer {
   orientation: Orientation;
   level: number;
   team: string;
+  /** Inventory counts (food + six stones); updated by `pin`. */
+  inventory: TileContent;
 }
 
 /** A parsed server → GUI message. */
@@ -62,6 +84,14 @@ export type GuiMessage =
       x: number;
       y: number;
       orientation: Orientation;
+    }
+  | { kind: "player-level"; id: number; level: number }
+  | {
+      kind: "player-inventory";
+      id: number;
+      x: number;
+      y: number;
+      inventory: TileContent;
     }
   | { kind: "player-dead"; id: number }
   | { kind: "unknown"; raw: string };
@@ -193,6 +223,35 @@ export function parseGuiLine(line: string): GuiMessage {
         return { kind: "unknown", raw: line };
       }
       return { kind: "player-pos", id, x, y, orientation };
+    }
+
+    case "plv": {
+      // plv #<id> <level>
+      const id = parsePlayerId(parts[1]);
+      const level = parseCount(parts[2]);
+      if (id === null || level === null) {
+        return { kind: "unknown", raw: line };
+      }
+      return { kind: "player-level", id, level };
+    }
+
+    case "pin": {
+      // pin #<id> <x> <y> <food> <jade> <peridot> <amber> <amethyst> <garnet> <ammolite>
+      const id = parsePlayerId(parts[1]);
+      const x = parseCount(parts[2]);
+      const y = parseCount(parts[3]);
+      if (id === null || x === null || y === null) {
+        return { kind: "unknown", raw: line };
+      }
+      const inventory = emptyTile();
+      for (let i = 0; i < RESOURCE_NAMES.length; i += 1) {
+        const count = parseCount(parts[4 + i]);
+        if (count === null) {
+          return { kind: "unknown", raw: line };
+        }
+        inventory[RESOURCE_NAMES[i]] = count;
+      }
+      return { kind: "player-inventory", id, x, y, inventory };
     }
 
     case "pdi": {

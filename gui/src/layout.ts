@@ -70,6 +70,37 @@ export function hitTestTile(
 }
 
 /**
+ * Map a canvas-pixel point to the nearest player icon, or `null`.
+ * Prefers players over bare tiles so AQ19 click-player works even when the
+ * icon sits inside a resource cell (G04).
+ */
+export function hitTestPlayer(
+  canvasX: number,
+  canvasY: number,
+  layout: GridLayout,
+  world: WorldState,
+): number | null {
+  const { offsetX, offsetY, cell } = layout;
+  const radius = Math.max(3, Math.floor(cell / 4.5));
+  // Slightly larger hit target than the drawn icon.
+  const hitR = radius * 1.6;
+  let bestId: number | null = null;
+  let bestDist = hitR * hitR;
+  for (const player of world.allPlayers()) {
+    const cx = offsetX + player.x * cell + cell / 2;
+    const cy = offsetY + player.y * cell + cell / 2;
+    const dx = canvasX - cx;
+    const dy = canvasY - cy;
+    const d2 = dx * dx + dy * dy;
+    if (d2 <= bestDist) {
+      bestDist = d2;
+      bestId = player.id;
+    }
+  }
+  return bestId;
+}
+
+/**
  * Convert a mouse event on `canvas` into canvas-buffer coordinates (accounts
  * for CSS scaling / devicePixelRatio).
  */

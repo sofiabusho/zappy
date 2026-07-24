@@ -1,9 +1,9 @@
 /**
- * GUI entry point (G01–G03).
+ * GUI entry point (G01–G04).
  *
- * Wires a {@link Transport} → protocol parse → {@link WorldState} → {@link
- * CanvasRenderer}. Click a square for a floating detail panel with resource
- * counts (G03 / AQ16 / AQ17). Player characteristic overlays are G04.
+ * Click a player icon for characteristics (G04 / AQ19), or a bare square for
+ * resource counts (G03). Player hits take priority when the cursor is on an
+ * icon.
  */
 
 import { parseGuiLine, emptyTile } from "./protocol.js";
@@ -19,10 +19,12 @@ import { demoStream } from "./demo.js";
 import {
   computeGridLayout,
   eventToCanvasPoint,
+  hitTestPlayer,
   hitTestTile,
 } from "./layout.js";
 import { buildTileDetails } from "./tileDetails.js";
-import { TileOverlay } from "./overlay.js";
+import { buildPlayerDetails } from "./playerDetails.js";
+import { PlayerOverlay, TileOverlay } from "./overlay.js";
 
 function requireElement<T extends HTMLElement>(id: string): T {
   const el = document.getElementById(id);
@@ -49,7 +51,8 @@ function start(): void {
 
   const world = new WorldState();
   const renderer = new CanvasRenderer(canvas);
-  const overlay = new TileOverlay(mainEl);
+  const tileOverlay = new TileOverlay(mainEl);
+  const playerOverlay = new PlayerOverlay(mainEl);
 
   const resize = (): void => {
     const rect = canvas.getBoundingClientRect();
@@ -74,9 +77,11 @@ function start(): void {
     });
   };
 
-  const dismissOverlay = (): void => {
-    overlay.hide();
+  const dismissOverlays = (): void => {
+    tileOverlay.hide();
+    playerOverlay.hide();
     renderer.setSelectedTile(null);
+    renderer.setSelectedPlayer(null);
     scheduleRender();
   };
 
@@ -86,11 +91,30 @@ function start(): void {
     clientX: number,
     clientY: number,
   ): void => {
+    playerOverlay.hide();
+    renderer.setSelectedPlayer(null);
     const content = world.tileAt(tileX, tileY) ?? emptyTile();
     const playerIds = world.playersAt(tileX, tileY).map((p) => p.id);
     const details = buildTileDetails(tileX, tileY, content, playerIds);
-    overlay.show(details, clientX, clientY);
+    tileOverlay.show(details, clientX, clientY);
     renderer.setSelectedTile({ x: tileX, y: tileY });
+    scheduleRender();
+  };
+
+  const inspectPlayer = (
+    playerId: number,
+    clientX: number,
+    clientY: number,
+  ): void => {
+    const player = world.playerById(playerId);
+    if (player === null) {
+      return;
+    }
+    tileOverlay.hide();
+    renderer.setSelectedTile(null);
+    const details = buildPlayerDetails(player);
+    playerOverlay.show(details, clientX, clientY);
+    renderer.setSelectedPlayer(playerId);
     scheduleRender();
   };
 
@@ -103,9 +127,14 @@ function start(): void {
       return;
     }
     const point = eventToCanvasPoint(canvas, event.clientX, event.clientY);
+    const playerId = hitTestPlayer(point.x, point.y, layout, world);
+    if (playerId !== null) {
+      inspectPlayer(playerId, event.clientX, event.clientY);
+      return;
+    }
     const hit = hitTestTile(point.x, point.y, layout);
     if (hit === null) {
-      dismissOverlay();
+      dismissOverlays();
       return;
     }
     inspectTile(hit.x, hit.y, event.clientX, event.clientY);
@@ -113,7 +142,7 @@ function start(): void {
 
   window.addEventListener("keydown", (event: KeyboardEvent) => {
     if (event.key === "Escape") {
-      dismissOverlay();
+      dismissOverlays();
     }
   });
 

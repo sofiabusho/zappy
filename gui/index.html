@@ -59,7 +59,7 @@
         height: 100%;
         cursor: crosshair;
       }
-      #tile-overlay {
+      .float-overlay {
         position: fixed;
         z-index: 10;
         min-width: 11rem;
@@ -71,20 +71,28 @@
         color: #cfe8d8;
         pointer-events: none;
       }
-      #tile-overlay[hidden] {
+      .float-overlay[hidden] {
         display: none;
       }
-      #tile-overlay h2 {
+      .float-overlay h2 {
         margin: 0 0 0.4rem;
         font-size: 0.85rem;
         font-weight: 600;
       }
-      #tile-overlay ul {
+      .float-overlay h3 {
+        margin: 0.5rem 0 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #8fb8a0;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .float-overlay ul {
         list-style: none;
         margin: 0;
         padding: 0;
       }
-      #tile-overlay li {
+      .float-overlay li {
         display: grid;
         grid-template-columns: 0.7rem 1fr auto;
         gap: 0.45rem;
@@ -92,25 +100,40 @@
         font-size: 0.8rem;
         padding: 0.12rem 0;
       }
-      #tile-overlay li .swatch {
+      .float-overlay li .swatch {
         width: 0.65rem;
         height: 0.65rem;
         border-radius: 2px;
         border: 1px solid #06140c;
       }
-      #tile-overlay li .count {
+      .float-overlay li .count {
         font-variant-numeric: tabular-nums;
         color: #ffe66d;
       }
-      #tile-overlay li[data-stone="true"] .name {
+      .float-overlay li[data-stone="true"] .name {
         color: #e8fff0;
       }
-      .tile-overlay-players {
+      .float-overlay .player-meta {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.15rem 0.6rem;
+        margin: 0;
+        font-size: 0.8rem;
+      }
+      .float-overlay .player-meta dt {
+        margin: 0;
+        color: #8fb8a0;
+      }
+      .float-overlay .player-meta dd {
+        margin: 0;
+        color: #cfe8d8;
+      }
+      .overlay-meta {
         margin: 0.45rem 0 0;
         font-size: 0.75rem;
         color: #8fb8a0;
       }
-      .tile-overlay-hint {
+      .overlay-hint {
         margin: 0.35rem 0 0;
         font-size: 0.65rem;
         color: #5f8570;

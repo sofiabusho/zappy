@@ -26,6 +26,7 @@ const SELECT_STROKE = "#cfe8d8";
 export class CanvasRenderer {
   private readonly ctx: CanvasRenderingContext2D;
   private selected: { x: number; y: number } | null = null;
+  private selectedPlayerId: number | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext("2d");
@@ -38,6 +39,11 @@ export class CanvasRenderer {
   /** Highlight the inspected square (G03); `null` clears. */
   setSelectedTile(tile: { x: number; y: number } | null): void {
     this.selected = tile;
+  }
+
+  /** Highlight the inspected player (G04); `null` clears. */
+  setSelectedPlayer(id: number | null): void {
+    this.selectedPlayerId = id;
   }
 
   /** Redraw the whole frame for the current world state. */
@@ -64,7 +70,32 @@ export class CanvasRenderer {
     this.drawTileIcons(world, offsetX, offsetY, cols, rows, cell);
     this.drawPlayers(world, offsetX, offsetY, cell);
     this.drawSelection(offsetX, offsetY, cell);
+    this.drawPlayerSelection(world, offsetX, offsetY, cell);
     this.drawLegend(width, height);
+  }
+
+  private drawPlayerSelection(
+    world: WorldState,
+    offsetX: number,
+    offsetY: number,
+    cell: number,
+  ): void {
+    if (this.selectedPlayerId === null) {
+      return;
+    }
+    const player = world.playerById(this.selectedPlayerId);
+    if (player === null) {
+      return;
+    }
+    const ctx = this.ctx;
+    const cx = offsetX + player.x * cell + cell / 2;
+    const cy = offsetY + player.y * cell + cell / 2;
+    const r = Math.max(4, Math.floor(cell / 3.2));
+    ctx.strokeStyle = SELECT_STROKE;
+    ctx.lineWidth = Math.max(2, Math.floor(cell / 16));
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
   }
 
   private drawSelection(

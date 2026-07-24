@@ -66,10 +66,13 @@ export function demoStream(width = 12, height = 12): string[] {
     }
   }
 
-  // Players (AQ18).
+  // Players (AQ18) + inventories for characteristics overlay (AQ19 / G04).
   lines.push("pnw #1 6 6 1 1 alpha");
   lines.push("pnw #2 8 4 2 2 beta");
   lines.push("ppo #1 6 7 3");
+  lines.push("pin #1 6 7 10 0 0 0 0 0 0");
+  lines.push("pin #2 8 4 8 1 0 0 0 1 0");
+  lines.push("plv #2 2");
 
   return lines;
 }
