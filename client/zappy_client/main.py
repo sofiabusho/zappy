@@ -1,15 +1,15 @@
-"""``./client`` entrypoint (C01 / RQ18, RQ19, AQ11-AQ14).
+"""``./client`` entrypoint (C01 handshake, C03 autonomous survival).
 
-Responsibilities for this ticket:
+Responsibilities:
   * parse the subject CLI (``-n -p [-h]``), printing usage on error (AQ11);
   * connect over TCP to the server (AQ12/AQ13);
   * complete the handshake and report the world size / free slots (RQ19);
-  * exit cleanly if the team is rejected (AQ14) or the server closes.
+  * exit cleanly if the team is rejected (AQ14) or the server closes;
+  * then hand the connection to the autonomous :class:`SurvivalAgent`, which
+    plays with no human intervention (RQ18/RQ20): it sees, moves, and eats to
+    stay alive (RQ07 / AQ23).
 
-Autonomous gameplay (survival, ritual, fork) is intentionally out of scope
-here and lands in C02+. After a successful handshake this client keeps the
-connection open and echoes any server-initiated lines (e.g. ``message`` or
-``death``) so an auditor can watch it interact, exiting when the server closes.
+Gathering, meetup broadcasts, rituals and forking build on this in C04+.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from __future__ import annotations
 import sys
 
 from .cli import USAGE, ClientArgs, UsageError, parse_args
+from .pipeline import CommandPipeline
 from .protocol import (
     ConnectionClosed,
     HandshakeError,
@@ -24,28 +25,24 @@ from .protocol import (
     ServerConnection,
     handshake,
 )
+from .survival import SurvivalAgent
+
+# Gameplay socket timeout: every subject action replies within ``cost/t`` seconds
+# (≤7/t for the verbs the survival loop uses), so a generous ceiling keeps the
+# client from hanging forever on an unresponsive server (RQ16 spirit) without
+# tripping during normal play.
+_GAMEPLAY_TIMEOUT_S = 30.0
 
 
-def _idle(conn: ServerConnection) -> int:
-    """Read server-initiated lines until the connection closes.
-
-    Keeps the socket alive so the client "interacts without errors" (AQ12/13)
-    without driving gameplay (that is C02+). Returns 0 on a clean close.
-    """
-    conn._sock.settimeout(None)  # block for pushed lines; no busy-loop
-    while True:
-        try:
-            line = conn.recv_line()
-        except ConnectionClosed:
-            return 0
-        if line == "death":
-            print("client: player died (starvation); exiting.")
-            return 0
-        print(f"server> {line}")
+def _play(conn: ServerConnection) -> int:
+    """Run the autonomous survival loop until death or disconnect."""
+    conn._sock.settimeout(_GAMEPLAY_TIMEOUT_S)
+    agent = SurvivalAgent(CommandPipeline(conn))
+    return agent.run()
 
 
 def run(args: ClientArgs) -> int:
-    """Connect, handshake, and hand off to the idle reader."""
+    """Connect, handshake, and hand off to the autonomous survival agent."""
     try:
         conn = ServerConnection.connect(args.host, args.port)
     except OSError as exc:
@@ -67,7 +64,7 @@ def run(args: ClientArgs) -> int:
             f"— world {result.width}x{result.height}, {result.nb_client} free slot(s)."
         )
         try:
-            return _idle(conn)
+            return _play(conn)
         except KeyboardInterrupt:
             print("\nclient: interrupted; disconnecting.")
             return 0

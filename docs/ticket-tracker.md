@@ -26,8 +26,8 @@
 
 | Field | Value |
 |-------|-------|
-| Last push | C02 client cmd pipeline (≤10 window + push routing) — software-sappho |
-| Who’s up | Next: claim **C03** (survival AI, Deps C02 ✅ S10 ✅) or **G01** (GUI scaffold) |
+| Last push | C03 survival AI (see→eat→seek→wander autonomous loop) — software-sappho |
+| Who’s up | Next: claim **C04** (gathering + broadcast meetup + enchantment, Deps C03 ✅ S12 ✅ S14 ✅) or **G01** (GUI scaffold) |
 | Note | Serial turns only; do not start a second 🟢 |
 
 ## 3. Tracks
@@ -171,7 +171,7 @@ Tracks are **focus areas**, not parallel merge lanes.
 |----|--------|--------|------|------|----------|------------|
 | C01 | ✅ | Real `./client` CLI + TCP connect + handshake | M | S03, A02 | RQ18, RQ19, AQ11, AQ12, AQ13, AQ14 | software-sappho |
 | C02 | ✅ | Command sender/receiver respecting pipeline ≤10 and delays | M | C01, S06 | RQ11, RQ12 | software-sappho |
-| C03 | ⬜ | Survival AI: move, see, pick food, avoid death | M | C02, S10 | RQ07, RQ20, AQ12, AQ13, AQ23 | |
+| C03 | ✅ | Survival AI: move, see, pick food, avoid death | M | C02, S10 | RQ07, RQ20, AQ12, AQ13, AQ23 | software-sappho |
 | C04 | ⬜ | Gathering + broadcast meetup + enchantment attempts | L | C03, S12, S14 | RQ09, RQ15, RQ20, AQ25 | |
 | C05 | ⬜ | Fork strategy when family needs slots | S | C03, S13 | RQ13, AQ26 | |
 
@@ -298,7 +298,8 @@ Tracks are **focus areas**, not parallel merge lanes.
 1. ~~**S01**–**S16**~~ ✅ **server track complete**
 2. ~~**C01**~~ ✅ client CLI + TCP connect + handshake
 3. ~~**C02**~~ ✅ client cmd pipeline (≤10 window + push routing)
-4. Next tracks: **C03** (survival AI, Deps C02 ✅ S10 ✅) or **G01** (GUI) — check Deps in tracker
+4. ~~**C03**~~ ✅ survival AI (see→eat→seek→wander autonomous loop)
+5. Next tracks: **C04** (gathering + broadcast meetup + enchantment, Deps C03 ✅ S12 ✅ S14 ✅) or **G01** (GUI) — check Deps in tracker
 
 ## 11. Summary by track
 
@@ -306,10 +307,10 @@ Tracks are **focus areas**, not parallel merge lanes.
 |-------|------:|--:|--:|-----:|--:|
 | A Bootstrap | 4 | 4 | 0 | 0 | 0 |
 | S Server | 16 | 16 | 0 | 0 | 0 |
-| C Client | 5 | 2 | 0 | 3 | 0 |
+| C Client | 5 | 3 | 0 | 2 | 0 |
 | G Graphic | 5 | 0 | 0 | 5 | 0 |
 | I Integration | 2 | 0 | 0 | 2 | 0 |
 | B Bonus | 4 | 0 | 0 | 4 | 0 |
-| **All** | **36** | **22** | **0** | **14** | **0** |
+| **All** | **36** | **23** | **0** | **13** | **0** |
 
 Core (non-bonus) tickets: **32**. Bonus: **4**.
