@@ -93,7 +93,20 @@ class EventKind(Enum):
     DEATH = "death"  # server push: this player starved (RQ07)
     MESSAGE = "message"  # server push: broadcast heard (RQ15)
     MOVING = "moving"  # server push: kicked by another player (RQ14)
+    RITUAL_LEVEL = "ritual_level"  # server push: `current level : K` after a ritual
     UNSOLICITED = "unsolicited"  # a non-push line with no command waiting
+
+
+# Server line a ritual participant sees when an enchantment *begins* (RQ09). For
+# the starter it is the response to its own `enchantment`; for a bystander who
+# was swept into the ritual it arrives unsolicited. It stays classified as a
+# RESPONSE (it is the documented enchantment reply) — the gathering agent reads
+# its text to know the ritual started.
+EVOLUTION_IN_PROGRESS = "evolution in progress"
+
+# Prefix of the ritual success push: `current level : K`. Delivered to every
+# participant (starter and joiners alike) when the 300/t enchantment completes.
+_CURRENT_LEVEL_PREFIX = "current level :"
 
 
 @dataclass(frozen=True)
@@ -123,7 +136,19 @@ def classify(line: str) -> EventKind:
         return EventKind.MESSAGE
     if line.startswith("moving "):
         return EventKind.MOVING
+    if line.startswith(_CURRENT_LEVEL_PREFIX):
+        return EventKind.RITUAL_LEVEL
     return EventKind.RESPONSE
+
+
+def parse_current_level(line: str) -> int | None:
+    """Extract ``K`` from a ``current level : K`` push; ``None`` if unparseable."""
+    if not line.startswith(_CURRENT_LEVEL_PREFIX):
+        return None
+    try:
+        return int(line[len(_CURRENT_LEVEL_PREFIX) :].strip())
+    except ValueError:
+        return None
 
 
 class CommandPipeline:

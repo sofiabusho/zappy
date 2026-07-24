@@ -1,15 +1,17 @@
-"""``./client`` entrypoint (C01 handshake, C03 autonomous survival).
+"""``./client`` entrypoint (C01 handshake, C03 survival, C04 gather + evolve).
 
 Responsibilities:
   * parse the subject CLI (``-n -p [-h]``), printing usage on error (AQ11);
   * connect over TCP to the server (AQ12/AQ13);
   * complete the handshake and report the world size / free slots (RQ19);
   * exit cleanly if the team is rejected (AQ14) or the server closes;
-  * then hand the connection to the autonomous :class:`SurvivalAgent`, which
+  * then hand the connection to the autonomous :class:`GatheringAgent`, which
     plays with no human intervention (RQ18/RQ20): it sees, moves, and eats to
-    stay alive (RQ07 / AQ23).
+    stay alive (RQ07 / AQ23), gathers ritual stones, rallies same-level partners
+    with ``broadcast`` (RQ15), and performs the evolution ritual to level up
+    (RQ09 / AQ25).
 
-Gathering, meetup broadcasts, rituals and forking build on this in C04+.
+Forking for family slots builds on this in C05.
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ from __future__ import annotations
 import sys
 
 from .cli import USAGE, ClientArgs, UsageError, parse_args
+from .gathering import GatheringAgent
 from .pipeline import CommandPipeline
 from .protocol import (
     ConnectionClosed,
@@ -25,7 +28,6 @@ from .protocol import (
     ServerConnection,
     handshake,
 )
-from .survival import SurvivalAgent
 
 # Gameplay socket timeout: every subject action replies within ``cost/t`` seconds
 # (≤7/t for the verbs the survival loop uses), so a generous ceiling keeps the
@@ -35,9 +37,9 @@ _GAMEPLAY_TIMEOUT_S = 30.0
 
 
 def _play(conn: ServerConnection) -> int:
-    """Run the autonomous survival loop until death or disconnect."""
+    """Run the autonomous gather/evolve loop until death or disconnect."""
     conn._sock.settimeout(_GAMEPLAY_TIMEOUT_S)
-    agent = SurvivalAgent(CommandPipeline(conn))
+    agent = GatheringAgent(CommandPipeline(conn))
     return agent.run()
 
 

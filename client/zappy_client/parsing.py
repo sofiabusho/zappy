@@ -120,10 +120,22 @@ def nearest_food(tiles: list[list[str]]) -> int | None:
     the choice is deterministic and the AI never oscillates between two equally
     near foods.
     """
+    return nearest_with(tiles, {FOOD})
+
+
+def nearest_with(tiles: list[list[str]], wanted: set[str]) -> int | None:
+    """Return the index of the closest tile containing any token in ``wanted``.
+
+    Generalises :func:`nearest_food` so the gathering AI (C04) can steer toward
+    the nearest tile holding a stone it still needs. Distance is
+    :attr:`TileOffset.steps`; ties break toward the lower index, keeping the
+    choice deterministic so the agent never oscillates between two equally near
+    tiles.
+    """
     best: int | None = None
     best_steps = 0
     for index, tokens in enumerate(tiles):
-        if FOOD not in tokens:
+        if wanted.isdisjoint(tokens):
             continue
         steps = tile_offset(index).steps
         if best is None or steps < best_steps:
