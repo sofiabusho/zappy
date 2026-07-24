@@ -1,8 +1,9 @@
 //! Zappy server binary entrypoint.
 //!
 //! Parses the command line (S01 / RQ17 / AQ01). On a valid line it starts the
-//! multiplexed TCP event loop (S02 / RQ16 / AQ02), which accepts clients and
-//! sends `WELCOME\n`. Handshake completion and gameplay arrive in later tickets.
+//! multiplexed TCP event loop (S02/S03 / RQ16 / RQ19 / AQ02 / AQ14), which
+//! accepts clients, sends `WELCOME\n`, and completes the team handshake.
+//! Gameplay arrives in later tickets.
 
 use std::process::ExitCode;
 

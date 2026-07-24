@@ -44,8 +44,9 @@ All lines end with `\n`.
 |-----------|---------|
 | S→C | `WELCOME` |
 | C→S | `<team-name>` |
-| S→C | `<nb-client>` then `<width> <height>` |
+| S→C | `<nb-client>` then `<width> <height>` (`nb-client` = free slots **after** this join) |
 | Error | Server prints `Error: the team <name> doesn't exist`; drop client |
+| Full team | No handshake reply; drop client (slot restored only for prior successful joins on disconnect) |
 
 ### Commands
 

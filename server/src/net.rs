@@ -1,9 +1,16 @@
-//! Multiplexed TCP accept loop (S02).
+//! Multiplexed TCP accept + handshake (S02 / S03).
 //!
-//! Binds a non-blocking listener, accepts clients via `mio` poll, and sends
-//! [`WELCOME`] immediately on connect (RQ16 / AQ02). Full handshake (team /
-//! nb-client / map size) arrives in S03; inbound bytes are drained and ignored
-//! here so a pipelining client cannot stall the event loop.
+//! Non-blocking `mio` poll loop: accept clients, send [`WELCOME`], then complete
+//! the subject handshake (RQ19 / AQ14):
+//!
+//! 1. Client sends `team-name\n`
+//! 2. Unknown team → print `Error: the team <name> doesn't exist` and disconnect
+//! 3. Known team with a free slot → reply `nb-client\n` then `X Y\n` (`nb-client`
+//!    is remaining slots **after** this join)
+//! 4. Team full → disconnect without joining
+//!
+//! Inbound bytes after a successful handshake are drained until later tickets
+//! parse commands (S06+). Slot counts are restored when a joined client drops.
 
 use std::collections::HashMap;
 use std::io::{self, ErrorKind, Read, Write};
@@ -19,15 +26,74 @@ use crate::cli::Config;
 /// Exact welcome line from the subject handshake table (`WELCOME\n`).
 pub const WELCOME: &[u8] = b"WELCOME\n";
 
+/// Cap on a single inbound protocol line (team name / later commands).
+const MAX_LINE_BYTES: usize = 1024;
+
 const LISTENER: Token = Token(0);
 /// Poll wake interval so the loop never blocks forever (RQ16) and tests can stop.
 const POLL_TIMEOUT: Duration = Duration::from_millis(50);
 
+/// Per-team free connection slots (`-c` at start).
+#[derive(Debug, Clone)]
+struct TeamSlots {
+    /// team name → (free, max)
+    inner: HashMap<String, (u32, u32)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum JoinError {
+    Unknown,
+    Full,
+}
+
+impl TeamSlots {
+    fn new(teams: &[String], clients_per_team: u32) -> Self {
+        let mut inner = HashMap::with_capacity(teams.len());
+        for name in teams {
+            inner.insert(name.clone(), (clients_per_team, clients_per_team));
+        }
+        Self { inner }
+    }
+
+    /// Take one slot. On success returns remaining free slots after the join.
+    fn try_join(&mut self, team: &str) -> Result<u32, JoinError> {
+        let Some((free, _max)) = self.inner.get_mut(team) else {
+            return Err(JoinError::Unknown);
+        };
+        if *free == 0 {
+            return Err(JoinError::Full);
+        }
+        *free -= 1;
+        Ok(*free)
+    }
+
+    fn release(&mut self, team: &str) {
+        if let Some((free, max)) = self.inner.get_mut(team) {
+            if *free < *max {
+                *free += 1;
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Phase {
+    /// Waiting for `team-name\n` (after WELCOME is fully sent).
+    AwaitingTeam,
+    /// Handshake complete; commands arrive in later tickets.
+    Joined,
+}
+
 struct Connection {
     stream: TcpStream,
-    /// Remaining outbound bytes (starts as [`WELCOME`]).
+    /// Remaining outbound bytes.
     out: Vec<u8>,
     out_pos: usize,
+    /// Accumulated inbound bytes until `\n`.
+    inbuf: Vec<u8>,
+    phase: Phase,
+    /// Team joined (for slot release on disconnect).
+    team: Option<String>,
 }
 
 impl Connection {
@@ -36,6 +102,9 @@ impl Connection {
             stream,
             out: WELCOME.to_vec(),
             out_pos: 0,
+            inbuf: Vec::new(),
+            phase: Phase::AwaitingTeam,
+            team: None,
         }
     }
 
@@ -43,14 +112,21 @@ impl Connection {
         self.out_pos < self.out.len()
     }
 
-    /// Write as much of the pending buffer as the socket will accept.
+    fn queue_out(&mut self, bytes: &[u8]) {
+        if !self.pending_out() {
+            self.out.clear();
+            self.out_pos = 0;
+        }
+        self.out.extend_from_slice(bytes);
+    }
+
     fn flush_out(&mut self) -> io::Result<()> {
         while self.out_pos < self.out.len() {
             match self.stream.write(&self.out[self.out_pos..]) {
                 Ok(0) => {
                     return Err(io::Error::new(
                         ErrorKind::WriteZero,
-                        "peer closed during welcome",
+                        "peer closed during write",
                     ));
                 }
                 Ok(n) => self.out_pos += n,
@@ -64,14 +140,21 @@ impl Connection {
         Ok(())
     }
 
-    /// Drain readable data. Returns `true` when the peer has closed.
-    fn drain_in(&mut self) -> io::Result<bool> {
+    /// Read available bytes into `inbuf`. Returns `true` when the peer closed.
+    fn read_in(&mut self) -> io::Result<bool> {
         let mut buf = [0u8; 1024];
         loop {
             match self.stream.read(&mut buf) {
                 Ok(0) => return Ok(true),
-                Ok(_) => {
-                    // Handshake / commands are parsed in S03+; discard for now.
+                Ok(n) => {
+                    self.inbuf.extend_from_slice(&buf[..n]);
+                    // Bound memory if a client never sends `\n`.
+                    if self.inbuf.len() > MAX_LINE_BYTES * 4 {
+                        return Err(io::Error::new(
+                            ErrorKind::InvalidData,
+                            "inbound buffer overflow",
+                        ));
+                    }
                 }
                 Err(e) if e.kind() == ErrorKind::WouldBlock => return Ok(false),
                 Err(e) if e.kind() == ErrorKind::Interrupted => continue,
@@ -79,25 +162,78 @@ impl Connection {
             }
         }
     }
+
+    /// Pop one `\n`-terminated line (strips trailing `\r`). `None` if incomplete.
+    fn take_line(&mut self) -> Option<String> {
+        let pos = self.inbuf.iter().position(|&b| b == b'\n')?;
+        let mut line = self.inbuf.drain(..=pos).collect::<Vec<u8>>();
+        line.pop(); // `\n`
+        if line.last() == Some(&b'\r') {
+            line.pop();
+        }
+        Some(String::from_utf8_lossy(&line).into_owned())
+    }
+}
+
+/// Outcome of trying to finish the team handshake for one connection.
+enum HandshakeStep {
+    /// No action / still waiting for a full line.
+    Idle,
+    /// Queued `nb-client` + map size; may need WRITABLE interest.
+    JoinedNeedsWrite,
+    /// Unknown team — caller must print the subject error and drop.
+    UnknownTeam(String),
+    /// Team exists but has no free slots — drop quietly.
+    Full,
+}
+
+fn progress_handshake(
+    conn: &mut Connection,
+    slots: &mut TeamSlots,
+    width: u32,
+    height: u32,
+) -> HandshakeStep {
+    if conn.pending_out() || conn.phase != Phase::AwaitingTeam {
+        return HandshakeStep::Idle;
+    }
+    let Some(team) = conn.take_line() else {
+        return HandshakeStep::Idle;
+    };
+    match slots.try_join(&team) {
+        Ok(remaining) => {
+            conn.team = Some(team);
+            conn.phase = Phase::Joined;
+            let reply = format!("{remaining}\n{width} {height}\n");
+            conn.queue_out(reply.as_bytes());
+            HandshakeStep::JoinedNeedsWrite
+        }
+        Err(JoinError::Unknown) => HandshakeStep::UnknownTeam(team),
+        Err(JoinError::Full) => HandshakeStep::Full,
+    }
 }
 
 /// Bind `127.0.0.1:config.port` and serve until a fatal I/O error.
 pub fn serve(config: &Config) -> io::Result<()> {
     let addr = SocketAddr::from(([127, 0, 0, 1], config.port));
-    serve_addr(addr, None)
+    serve_addr(addr, config, None)
 }
 
 /// Bind `addr` and run the multiplexed event loop.
-///
-/// When `running` is `Some`, the loop exits cleanly once the flag is false
-/// (used by tests). When `None`, runs until a fatal I/O error.
-pub fn serve_addr(addr: SocketAddr, running: Option<&AtomicBool>) -> io::Result<()> {
+pub fn serve_addr(
+    addr: SocketAddr,
+    config: &Config,
+    running: Option<&AtomicBool>,
+) -> io::Result<()> {
     let listener = TcpListener::bind(addr)?;
-    serve_listener(listener, running)
+    serve_listener(listener, config, running)
 }
 
 /// Run the event loop on an already-bound non-blocking [`TcpListener`].
-pub fn serve_listener(mut listener: TcpListener, running: Option<&AtomicBool>) -> io::Result<()> {
+pub fn serve_listener(
+    mut listener: TcpListener,
+    config: &Config,
+    running: Option<&AtomicBool>,
+) -> io::Result<()> {
     let mut poll = Poll::new()?;
     let mut events = Events::with_capacity(128);
     poll.registry()
@@ -105,6 +241,9 @@ pub fn serve_listener(mut listener: TcpListener, running: Option<&AtomicBool>) -
 
     let mut connections: HashMap<Token, Connection> = HashMap::new();
     let mut next_token = Token(1);
+    let mut slots = TeamSlots::new(&config.teams, config.clients_per_team);
+    let width = config.width;
+    let height = config.height;
 
     if let Ok(addr) = listener.local_addr() {
         eprintln!("server: listening on {addr}");
@@ -127,9 +266,15 @@ pub fn serve_listener(mut listener: TcpListener, running: Option<&AtomicBool>) -
                 LISTENER => {
                     accept_pending(&mut poll, &mut listener, &mut connections, &mut next_token)?
                 }
-                token => {
-                    handle_connection_event(&mut poll, &mut connections, token, event)?;
-                }
+                token => handle_connection_event(
+                    &mut poll,
+                    &mut connections,
+                    &mut slots,
+                    token,
+                    event,
+                    width,
+                    height,
+                )?,
             }
         }
     }
@@ -160,10 +305,13 @@ fn accept_pending(
                     continue;
                 }
 
-                if !conn.pending_out() {
-                    poll.registry()
-                        .reregister(&mut conn.stream, token, Interest::READABLE)?;
-                }
+                let interest = if conn.pending_out() {
+                    Interest::READABLE.add(Interest::WRITABLE)
+                } else {
+                    Interest::READABLE
+                };
+                poll.registry()
+                    .reregister(&mut conn.stream, token, interest)?;
                 connections.insert(token, conn);
             }
             Err(e) if e.kind() == ErrorKind::WouldBlock => return Ok(()),
@@ -172,19 +320,45 @@ fn accept_pending(
     }
 }
 
+fn drop_connection(
+    poll: &mut Poll,
+    connections: &mut HashMap<Token, Connection>,
+    slots: &mut TeamSlots,
+    token: Token,
+) {
+    if let Some(mut conn) = connections.remove(&token) {
+        if let Some(team) = conn.team.take() {
+            slots.release(&team);
+        }
+        let _ = poll.registry().deregister(&mut conn.stream);
+    }
+}
+
+fn set_interest(
+    poll: &mut Poll,
+    conn: &mut Connection,
+    token: Token,
+    interest: Interest,
+) -> io::Result<()> {
+    poll.registry()
+        .reregister(&mut conn.stream, token, interest)
+}
+
 fn handle_connection_event(
     poll: &mut Poll,
     connections: &mut HashMap<Token, Connection>,
+    slots: &mut TeamSlots,
     token: Token,
     event: &mio::event::Event,
+    width: u32,
+    height: u32,
 ) -> io::Result<()> {
     let mut drop_conn = false;
-    let mut reregister_readable = false;
+    let mut want_writable = false;
 
     if let Some(conn) = connections.get_mut(&token) {
         if event.is_writable() && conn.pending_out() {
             match conn.flush_out() {
-                Ok(()) if !conn.pending_out() => reregister_readable = true,
                 Ok(()) => {}
                 Err(e) => {
                     eprintln!("server: write error: {e}");
@@ -194,8 +368,9 @@ fn handle_connection_event(
         }
 
         if !drop_conn && event.is_readable() {
-            match conn.drain_in() {
-                Ok(closed) => drop_conn = closed,
+            match conn.read_in() {
+                Ok(true) => drop_conn = true,
+                Ok(false) => {}
                 Err(e) => {
                     eprintln!("server: read error: {e}");
                     drop_conn = true;
@@ -203,20 +378,52 @@ fn handle_connection_event(
             }
         }
 
+        if !drop_conn {
+            match progress_handshake(conn, slots, width, height) {
+                HandshakeStep::Idle => {}
+                HandshakeStep::JoinedNeedsWrite => {
+                    want_writable = conn.pending_out();
+                    // Discard any pipelined junk after the team line for now.
+                    if !conn.inbuf.is_empty() {
+                        conn.inbuf.clear();
+                    }
+                }
+                HandshakeStep::UnknownTeam(name) => {
+                    // RQ19 / AQ14 — exact subject wording on the server.
+                    eprintln!("Error: the team {name} doesn't exist");
+                    drop_conn = true;
+                }
+                HandshakeStep::Full => {
+                    drop_conn = true;
+                }
+            }
+        }
+
+        // After join, keep draining to avoid stalling; ignore payload until S06.
+        if !drop_conn && conn.phase == Phase::Joined && event.is_readable() {
+            let _ = conn.read_in();
+            conn.inbuf.clear();
+        }
+
         if event.is_error() || event.is_read_closed() || event.is_write_closed() {
             drop_conn = true;
         }
 
-        if reregister_readable && !drop_conn {
-            poll.registry()
-                .reregister(&mut conn.stream, token, Interest::READABLE)?;
+        if !drop_conn {
+            let interest = if conn.pending_out() || want_writable {
+                Interest::READABLE.add(Interest::WRITABLE)
+            } else {
+                Interest::READABLE
+            };
+            if let Err(e) = set_interest(poll, conn, token, interest) {
+                eprintln!("server: reregister error: {e}");
+                drop_conn = true;
+            }
         }
     }
 
     if drop_conn {
-        if let Some(mut conn) = connections.remove(&token) {
-            let _ = poll.registry().deregister(&mut conn.stream);
-        }
+        drop_connection(poll, connections, slots, token);
     }
 
     Ok(())
@@ -225,10 +432,21 @@ fn handle_connection_event(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Read;
+    use std::io::{Read, Write};
     use std::sync::Arc;
     use std::thread;
     use std::time::Duration;
+
+    fn test_config(clients_per_team: u32) -> Config {
+        Config {
+            port: 1,
+            width: 10,
+            height: 20,
+            teams: vec!["alpha".into(), "beta".into()],
+            clients_per_team,
+            t: 100,
+        }
+    }
 
     fn read_line(stream: &mut std::net::TcpStream) -> io::Result<Vec<u8>> {
         stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -246,7 +464,9 @@ mod tests {
         }
     }
 
-    fn spawn_server() -> (
+    fn spawn_server(
+        config: Config,
+    ) -> (
         SocketAddr,
         Arc<AtomicBool>,
         thread::JoinHandle<io::Result<()>>,
@@ -258,8 +478,7 @@ mod tests {
 
         let running = Arc::new(AtomicBool::new(true));
         let flag = Arc::clone(&running);
-        let handle = thread::spawn(move || serve_listener(listener, Some(&flag)));
-        // Brief pause so the poll thread is registered before clients connect.
+        let handle = thread::spawn(move || serve_listener(listener, &config, Some(&flag)));
         thread::sleep(Duration::from_millis(20));
         (addr, running, handle)
     }
@@ -272,33 +491,147 @@ mod tests {
             .expect("server I/O error");
     }
 
+    fn handshake(addr: SocketAddr, team: &str) -> io::Result<(std::net::TcpStream, u32, u32, u32)> {
+        let mut client = std::net::TcpStream::connect(addr)?;
+        client.set_read_timeout(Some(Duration::from_secs(2)))?;
+        client.set_write_timeout(Some(Duration::from_secs(2)))?;
+
+        let welcome = read_line(&mut client)?;
+        assert_eq!(welcome, WELCOME);
+
+        client.write_all(format!("{team}\n").as_bytes())?;
+
+        let nb_line = read_line(&mut client)?;
+        let nb: u32 = std::str::from_utf8(&nb_line[..nb_line.len() - 1])
+            .unwrap()
+            .parse()
+            .expect("nb-client");
+
+        let dim_line = read_line(&mut client)?;
+        let dim = std::str::from_utf8(&dim_line[..dim_line.len() - 1]).unwrap();
+        let mut parts = dim.split_whitespace();
+        let w: u32 = parts.next().unwrap().parse().unwrap();
+        let h: u32 = parts.next().unwrap().parse().unwrap();
+        assert!(parts.next().is_none());
+
+        Ok((client, nb, w, h))
+    }
+
     #[test]
     fn welcome_bytes_match_subject() {
         assert_eq!(WELCOME, b"WELCOME\n");
-        assert_eq!(std::str::from_utf8(WELCOME).unwrap(), "WELCOME\n");
     }
 
     #[test]
     fn client_receives_welcome_on_connect() {
-        let (addr, running, handle) = spawn_server();
-
+        let (addr, running, handle) = spawn_server(test_config(5));
         let mut client = std::net::TcpStream::connect(addr).expect("connect");
         let line = read_line(&mut client).expect("read WELCOME");
         assert_eq!(line, WELCOME);
-
         stop_server(running, handle);
     }
 
     #[test]
     fn multiple_clients_each_receive_welcome() {
-        let (addr, running, handle) = spawn_server();
-
+        let (addr, running, handle) = spawn_server(test_config(5));
         for _ in 0..3 {
             let mut client = std::net::TcpStream::connect(addr).expect("connect");
             let line = read_line(&mut client).expect("read WELCOME");
             assert_eq!(line, WELCOME);
         }
+        stop_server(running, handle);
+    }
 
+    #[test]
+    fn valid_team_receives_remaining_slots_and_map_size() {
+        let (addr, running, handle) = spawn_server(test_config(5));
+        let (_client, nb, w, h) = handshake(addr, "alpha").expect("handshake");
+        assert_eq!(nb, 4); // 5 - 1
+        assert_eq!((w, h), (10, 20));
+        stop_server(running, handle);
+    }
+
+    #[test]
+    fn nb_client_decrements_per_join() {
+        let (addr, running, handle) = spawn_server(test_config(3));
+        let (_c1, nb1, _, _) = handshake(addr, "alpha").expect("first");
+        let (_c2, nb2, _, _) = handshake(addr, "alpha").expect("second");
+        assert_eq!(nb1, 2);
+        assert_eq!(nb2, 1);
+        stop_server(running, handle);
+    }
+
+    #[test]
+    fn unknown_team_is_disconnected_without_handshake_reply() {
+        let (addr, running, handle) = spawn_server(test_config(5));
+        let mut client = std::net::TcpStream::connect(addr).expect("connect");
+        assert_eq!(read_line(&mut client).unwrap(), WELCOME);
+        client.write_all(b"wrong_team\n").unwrap();
+
+        // Peer should close; a subsequent read yields 0 or an error, not nb-client.
+        client
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        let mut buf = [0u8; 32];
+        match client.read(&mut buf) {
+            Ok(0) => {}
+            Err(e)
+                if e.kind() == ErrorKind::ConnectionReset
+                    || e.kind() == ErrorKind::WouldBlock
+                    || e.kind() == ErrorKind::TimedOut => {}
+            other => panic!("expected disconnect, got {other:?}"),
+        }
+
+        stop_server(running, handle);
+    }
+
+    #[test]
+    fn full_team_rejects_additional_client() {
+        let (addr, running, handle) = spawn_server(test_config(1));
+        let (keep, nb, _, _) = handshake(addr, "beta").expect("only slot");
+        assert_eq!(nb, 0);
+
+        let mut client = std::net::TcpStream::connect(addr).expect("connect");
+        assert_eq!(read_line(&mut client).unwrap(), WELCOME);
+        client.write_all(b"beta\n").unwrap();
+        client
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        let mut buf = [0u8; 32];
+        match client.read(&mut buf) {
+            Ok(0) => {}
+            Err(e)
+                if e.kind() == ErrorKind::ConnectionReset
+                    || e.kind() == ErrorKind::WouldBlock
+                    || e.kind() == ErrorKind::TimedOut => {}
+            other => panic!("expected disconnect when full, got {other:?}"),
+        }
+
+        drop(keep);
+        stop_server(running, handle);
+    }
+
+    #[test]
+    fn team_slots_try_join_and_release() {
+        let mut slots = TeamSlots::new(&[String::from("a")], 2);
+        assert_eq!(slots.try_join("a"), Ok(1));
+        assert_eq!(slots.try_join("a"), Ok(0));
+        assert_eq!(slots.try_join("a"), Err(JoinError::Full));
+        assert_eq!(slots.try_join("nope"), Err(JoinError::Unknown));
+        slots.release("a");
+        assert_eq!(slots.try_join("a"), Ok(0));
+    }
+
+    #[test]
+    fn telnet_style_crlf_team_line_accepted() {
+        let (addr, running, handle) = spawn_server(test_config(2));
+        let mut client = std::net::TcpStream::connect(addr).expect("connect");
+        assert_eq!(read_line(&mut client).unwrap(), WELCOME);
+        client.write_all(b"alpha\r\n").unwrap();
+        let nb_line = read_line(&mut client).unwrap();
+        assert_eq!(nb_line, b"1\n");
+        let dim = read_line(&mut client).unwrap();
+        assert_eq!(dim, b"10 20\n");
         stop_server(running, handle);
     }
 }
