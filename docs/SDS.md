@@ -142,7 +142,15 @@ of the missing count per pass). Respawn is implemented now; the time loop will
 call it from S06+.
 ## 6. Vision
 
-Level `L` sees a forward triangle: row `d` (1..=L) has `2*d+1` tiles, indexed as in raw diagrams. `see` lists tile contents left-to-right, near-to-far; player does not see self; multiple objects on a tile are space-separated; empty tiles appear empty in the brace list.
+Implemented in `server/src/vision.rs` (S08). Level `L` sees a forward triangle:
+tile `0` is the current square, then for each depth `d = 1..=L` a row of
+`2*d+1` tiles left-to-right (relative to facing). Total slots = `(L+1)^2`
+(level 1→4, 2→9, 3→16). Coordinates use `Orientation::step_delta` / `turn_right`
+and wrap on the torus.
+
+`see` lists contents comma-separated inside `{}`; the looking player is omitted;
+other players appear as `player`; then `food`; then stone names in subject order.
+Empty tiles are empty fields (e.g. `{, , , }` on a bare level-1 view).
 
 ## 7. Ritual table
 

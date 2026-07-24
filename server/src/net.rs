@@ -515,11 +515,30 @@ fn tick_command_completions(
             continue;
         };
         let mut wrote = false;
-        while let Some(player) = players.get_mut(player_id) {
-            let Some(cmd) = player.queue.poll_complete(now, t) else {
-                break;
+        loop {
+            let cmd = {
+                let Some(player) = players.get_mut(player_id) else {
+                    break;
+                };
+                let Some(cmd) = player.queue.poll_complete(now, t) else {
+                    break;
+                };
+                cmd
             };
-            let reply = complete_command(&cmd, player, slots, world);
+            let reply = match &cmd {
+                Command::See => {
+                    let Some(viewer) = players.get(player_id) else {
+                        break;
+                    };
+                    crate::vision::see_reply(viewer, world, players)
+                }
+                other => {
+                    let Some(player) = players.get_mut(player_id) else {
+                        break;
+                    };
+                    complete_command(other, player, slots, world)
+                }
+            };
             conn.queue_out(reply.as_bytes());
             wrote = true;
         }
@@ -562,7 +581,7 @@ fn complete_command(
             "ok\n".to_string()
         }
         Command::Fork | Command::Broadcast(_) | Command::Kick => "ok\n".to_string(),
-        Command::See => "{}\n".to_string(),
+        Command::See => unreachable!("see handled in tick_command_completions"),
         Command::Inventory => player.inventory_reply(),
         Command::Pick(_) | Command::Drop(_) => "ko\n".to_string(),
         Command::Enchantment => "evolution in progress\n".to_string(),
