@@ -180,7 +180,10 @@ Empty tiles are empty fields (e.g. `{, , , }` on a bare level-1 view).
   further valid commands are ignored until a slot frees (`server/src/commands.rs`).
 - Unknown / malformed lines get an immediate `ko\n` and do not consume a queue slot.
 - Action wall time ≈ `cost / t` seconds.
-- 1 food = **126** time units of life.
+- 1 food = **126** time units of life (RQ07 / AQ30).
+- Each game time unit drains 1 life TU from every living player (S10). At 0 life
+  the server pushes `death\n` and disconnects the client (AQ07).
+- Picking food adds 126 life TU, extending survival (AQ08 / S09).
 
 ## 9. Sound direction K
 

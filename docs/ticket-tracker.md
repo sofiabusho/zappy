@@ -26,8 +26,8 @@
 
 | Field | Value |
 |-------|-------|
-| Last push | S09 pick/drop — agent |
-| Who’s up | Next: claim **S10** (food/death), **S11** (kick), **S12** (broadcast), or **S13** |
+| Last push | S10 hunger/death — agent |
+| Who’s up | Next: claim **S11**, **S12**, **S13**, or **S14** (ritual) |
 | Note | Serial turns only; do not start a second 🟢 |
 
 ## 3. Tracks
@@ -157,11 +157,11 @@ Tracks are **focus areas**, not parallel merge lanes.
 | S07 | ✅ | `advance` / `left` / `right` with delays; toroidal movement | M | S05, S06 | RQ03, RQ11, AQ06, AQ10 | agent |
 | S08 | ✅ | `see` vision by level + response formatting | M | S07 | RQ08, AQ09 | agent |
 | S09 | ✅ | `inventory`, `pick`, `drop` | M | S07 | RQ11, AQ23, AQ24 | agent |
-| S10 | 🟡 | Food consumption over time; `death`; eating extends life (126 TU) | M | S05, S06 | RQ07, AQ07, AQ08, AQ30 | |
+| S10 | ✅ | Food consumption over time; `death`; eating extends life (126 TU) | M | S05, S06 | RQ07, AQ07, AQ08, AQ30 | agent |
 | S11 | 🟡 | `kick` + `moving <K>`; no kick during ritual; resources unaffected | M | S07 | RQ14 | |
 | S12 | 🟡 | `broadcast` + directional `message <K>,<text>` (shortest path) | L | S07 | RQ15, AQ32, AQ33 | |
 | S13 | 🟡 | `fork` + ship timer + `connect_nbr` slots | M | S05, S06 | RQ13, AQ26 | |
-| S14 | ⬜ | `enchantment` / ritual table + mid-ritual alone restart | L | S09, S10 | RQ09, AQ25, AQ31 | |
+| S14 | 🟡 | `enchantment` / ritual table + mid-ritual alone restart | L | S09, S10 | RQ09, AQ25, AQ31 | |
 | S15 | ⬜ | Win detection: 6 teammates at level 8 | S | S14 | RQ02 | |
 | S16 | ⬜ | Harden: no exec paths; bind conflict message; local stress sanity | M | S02 | RQ16, AQ03, AQ04, AQ05 | |
 
@@ -295,21 +295,22 @@ Tracks are **focus areas**, not parallel merge lanes.
 
 ## 10. Immediate next work queue
 
-1. ~~**S01**–**S09**~~ ✅ done (through pick/drop/inventory)
-2. **S10** — food / death (🟡 Ready; Deps S05+S06 ✅)
-3. **S11** / **S12** — kick / broadcast (🟡 Ready; Deps S07 ✅)
+1. ~~**S01**–**S10**~~ ✅ done (through hunger/death)
+2. **S11** — kick (🟡 Ready; Deps S07 ✅)
+3. **S12** — broadcast (🟡 Ready; Deps S07 ✅)
 4. **S13** — fork / connect_nbr (🟡 Ready; Deps S05+S06 ✅)
+5. **S14** — enchantment ritual (🟡 Ready; Deps S09+S10 ✅)
 
 ## 11. Summary by track
 
 | Track | Total | ✅ | 🟢 | 🟡/⬜ | 🔴 |
 |-------|------:|--:|--:|-----:|--:|
 | A Bootstrap | 4 | 4 | 0 | 0 | 0 |
-| S Server | 16 | 9 | 0 | 7 | 0 |
+| S Server | 16 | 10 | 0 | 6 | 0 |
 | C Client | 5 | 0 | 0 | 5 | 0 |
 | G Graphic | 5 | 0 | 0 | 5 | 0 |
 | I Integration | 2 | 0 | 0 | 2 | 0 |
 | B Bonus | 4 | 0 | 0 | 4 | 0 |
-| **All** | **36** | **13** | **0** | **23** | **0** |
+| **All** | **36** | **14** | **0** | **22** | **0** |
 
 Core (non-bonus) tickets: **32**. Bonus: **4**.

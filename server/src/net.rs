@@ -16,10 +16,14 @@ use mio::{Events, Interest, Poll, Token};
 use crate::cli::Config;
 use crate::commands::{self, Command, KO};
 use crate::player::PlayerSet;
+use crate::time::{elapsed_time_units, time_unit_duration};
 use crate::world::{SeededRng, World};
 
 /// Exact welcome line from the subject handshake table (`WELCOME\n`).
 pub const WELCOME: &[u8] = b"WELCOME\n";
+
+/// Server push when a player starves (S10 / RQ07).
+pub const DEATH: &[u8] = b"death\n";
 
 /// Cap on a single inbound protocol line (team name / later commands).
 const MAX_LINE_BYTES: usize = 1024;
@@ -258,6 +262,8 @@ pub fn serve_listener(
     let mut players = PlayerSet::new();
     let mut rng = SeededRng::new(world.seed ^ 0x0C0F_FEE0_0D15_CAFE);
     let t = config.t;
+    let game_start = Instant::now();
+    let mut last_game_tu: u64 = 0;
 
     if let Ok(addr) = listener.local_addr() {
         eprintln!("server: listening on {addr}");
@@ -269,14 +275,18 @@ pub fn serve_listener(
         }
 
         let now = Instant::now();
-        // Wake sooner when a command delay is about to elapse (AQ06 timings).
-        let timeout = match players.next_busy_deadline() {
-            Some(deadline) if deadline > now => {
-                deadline.saturating_duration_since(now).min(POLL_TIMEOUT)
+        // Wake for command delays or the next hunger time unit (S10).
+        let mut timeout = POLL_TIMEOUT;
+        if let Some(deadline) = players.next_busy_deadline() {
+            if deadline > now {
+                timeout = timeout.min(deadline.saturating_duration_since(now));
+            } else {
+                timeout = Duration::from_millis(1);
             }
-            Some(_) => Duration::from_millis(1),
-            None => POLL_TIMEOUT,
-        };
+        }
+        if !players.is_empty() {
+            timeout = timeout.min(time_unit_duration(t).max(Duration::from_millis(1)));
+        }
 
         if let Err(e) = poll.poll(&mut events, Some(timeout)) {
             if e.kind() == ErrorKind::Interrupted {
@@ -312,6 +322,16 @@ pub fn serve_listener(
             &mut players,
             &slots,
             &mut world,
+            t,
+        );
+
+        tick_hunger_and_deaths(
+            &mut poll,
+            &mut connections,
+            &mut slots,
+            &mut players,
+            game_start,
+            &mut last_game_tu,
             t,
         );
     }
@@ -605,6 +625,61 @@ fn complete_command(
         }
         Command::Enchantment => "evolution in progress\n".to_string(),
         Command::ConnectNbr => format!("{}\n", slots.free(&player.team)),
+    }
+}
+
+/// Drain life by elapsed game time units; starve → `death\n` + disconnect (S10).
+fn tick_hunger_and_deaths(
+    poll: &mut Poll,
+    connections: &mut HashMap<Token, Connection>,
+    slots: &mut TeamSlots,
+    players: &mut PlayerSet,
+    game_start: Instant,
+    last_game_tu: &mut u64,
+    t: u32,
+) {
+    let now = Instant::now();
+    let current_tu = elapsed_time_units(now.duration_since(game_start), t);
+    if current_tu <= *last_game_tu {
+        return;
+    }
+    let delta_u64 = current_tu - *last_game_tu;
+    *last_game_tu = current_tu;
+    let delta = u32::try_from(delta_u64).unwrap_or(u32::MAX);
+
+    let mut dead_tokens: Vec<Token> = Vec::new();
+    let tokens: Vec<Token> = connections.keys().copied().collect();
+    for token in tokens {
+        let Some(conn) = connections.get_mut(&token) else {
+            continue;
+        };
+        let Some(player_id) = conn.player_id else {
+            continue;
+        };
+        let Some(player) = players.get_mut(player_id) else {
+            continue;
+        };
+        if player.tick_life(delta) {
+            conn.queue_out(DEATH);
+            dead_tokens.push(token);
+        }
+    }
+
+    for token in dead_tokens {
+        if let Some(conn) = connections.get_mut(&token) {
+            let _ = set_interest(
+                poll,
+                conn,
+                token,
+                Interest::READABLE.add(Interest::WRITABLE),
+            );
+            let _ = conn.flush_out();
+            eprintln!(
+                "server: player {} starved",
+                conn.player_id.map(|id| id.to_string()).unwrap_or_default()
+            );
+        }
+        drop_connection(poll, connections, slots, players, token);
     }
 }
 

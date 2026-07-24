@@ -10,8 +10,8 @@
 //! - a random map position and facing (N/E/S/W)
 //!
 //! Life is stored as remaining time units (`life_tu`). One food unit equals
-//! [`FOOD_LIFE_TU`] (126) time units (RQ07 / AQ30); S10 will consume this over
-//! time. The later `inventory` command reports `food` as this remaining life.
+//! [`FOOD_LIFE_TU`] (126) time units (RQ07 / AQ30). The server drains one TU of
+//! life per game time unit (S10); reaching 0 sends `death` and disconnects.
 
 use crate::commands::CmdQueue;
 use crate::world::{SeededRng, StoneKind, World};
@@ -201,6 +201,20 @@ impl Player {
             level: STARTING_LEVEL,
             inventory: Inventory::starting(),
             queue: CmdQueue::new(),
+        }
+    }
+
+    /// Drain `tu` life units. Returns `true` when life reaches 0 (starvation).
+    pub fn tick_life(&mut self, tu: u32) -> bool {
+        if tu == 0 {
+            return self.inventory.life_tu == 0;
+        }
+        if tu >= self.inventory.life_tu {
+            self.inventory.life_tu = 0;
+            true
+        } else {
+            self.inventory.life_tu -= tu;
+            false
         }
     }
 
@@ -494,7 +508,7 @@ mod tests {
         assert!(p.pick_object("food", &mut world));
         assert_eq!(p.inventory.life_tu, STARTING_LIFE_TU + FOOD_LIFE_TU);
         assert!(!world.tile(1, 1).food);
-        assert!(!p.pick_object("food", &mut world)); // gone
+        assert!(!p.pick_object("food", &mut world));
 
         assert!(p.pick_object("amber", &mut world));
         assert_eq!(p.inventory.amber, 1);
@@ -509,6 +523,30 @@ mod tests {
         assert!(world.tile(1, 1).food);
 
         assert!(!p.pick_object("nope", &mut world));
-        assert!(!p.drop_object("jade", &mut world)); // none carried
+        assert!(!p.drop_object("jade", &mut world));
+    }
+
+    #[test]
+    fn tick_life_starves_at_zero() {
+        let world = World::empty(2, 2);
+        let mut rng = SeededRng::new(1);
+        let mut p = Player::spawn(0, "t", &world, &mut rng);
+        assert!(!p.tick_life(100));
+        assert_eq!(p.inventory.life_tu, STARTING_LIFE_TU - 100);
+        assert!(p.tick_life(STARTING_LIFE_TU));
+        assert_eq!(p.inventory.life_tu, 0);
+        assert!(p.tick_life(1));
+    }
+
+    #[test]
+    fn eating_extends_life_before_starvation() {
+        let world = World::empty(2, 2);
+        let mut rng = SeededRng::new(1);
+        let mut p = Player::spawn(0, "t", &world, &mut rng);
+        p.inventory.life_tu = 50;
+        p.inventory.add_food_life();
+        assert_eq!(p.inventory.life_tu, 50 + FOOD_LIFE_TU);
+        assert!(!p.tick_life(100));
+        assert_eq!(p.inventory.life_tu, 50 + FOOD_LIFE_TU - 100);
     }
 }

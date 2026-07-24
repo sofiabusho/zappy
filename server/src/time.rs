@@ -27,6 +27,15 @@ pub fn time_unit_duration(t: u32) -> Duration {
     action_duration(t, 1)
 }
 
+/// How many whole time units fit in `elapsed` wall time at divider `t`.
+///
+/// `tu = floor(elapsed_seconds * t)`.
+pub fn elapsed_time_units(elapsed: Duration, t: u32) -> u64 {
+    assert!(t > 0, "t must be > 0");
+    let nanos = elapsed.as_nanos();
+    ((nanos * u128::from(t)) / 1_000_000_000) as u64
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -50,5 +59,12 @@ mod tests {
     #[test]
     fn one_time_unit_at_t100() {
         assert_eq!(time_unit_duration(100), Duration::from_millis(10));
+    }
+
+    #[test]
+    fn elapsed_time_units_scales_with_t() {
+        assert_eq!(elapsed_time_units(Duration::from_secs(1), 100), 100);
+        assert_eq!(elapsed_time_units(Duration::from_millis(70), 100), 7);
+        assert_eq!(elapsed_time_units(Duration::from_millis(9), 100), 0);
     }
 }
