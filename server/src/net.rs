@@ -586,6 +586,18 @@ fn tick_command_completions(
                         wrote = true;
                     }
                 },
+                Command::Broadcast(text) => {
+                    let targets = crate::sound::broadcast_targets(player_id, players, world);
+                    for (vid, k) in targets {
+                        let line = crate::sound::message_line(k, text);
+                        deliver_to_player(poll, connections, vid, line.as_bytes());
+                    }
+                    let Some(conn) = connections.get_mut(&token) else {
+                        break;
+                    };
+                    conn.queue_out(b"ok\n");
+                    wrote = true;
+                }
                 other => {
                     let Some(player) = players.get_mut(player_id) else {
                         break;
@@ -669,9 +681,9 @@ fn complete_command(
             player.turn_left();
             "ok\n".to_string()
         }
-        Command::Fork | Command::Broadcast(_) => "ok\n".to_string(),
-        Command::See | Command::Kick => {
-            unreachable!("see/kick handled in tick_command_completions")
+        Command::Fork => "ok\n".to_string(),
+        Command::See | Command::Kick | Command::Broadcast(_) => {
+            unreachable!("see/kick/broadcast handled in tick_command_completions")
         }
         Command::Inventory => player.inventory_reply(),
         Command::Pick(obj) => {

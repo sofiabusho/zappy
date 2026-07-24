@@ -188,8 +188,16 @@ Empty tiles are empty fields (e.g. `{, , , }` on a bare level-1 view).
 ## 9. Sound direction K
 
 - Same tile → `K = 0`.
-- Else shortest path on torus; map arrival into sectors 1..8 (1 = front, then counterclockwise).
-- See raw `sound.png` reference when available.
+- Else shortest signed deltas on the torus; map arrival into sectors 1..8
+  relative to the **receiver's** facing:
+  ```text
+  8 1 2
+  7 0 3
+  6 5 4
+  ```
+  (1 = front, then clockwise with north-up; matches kick cardinals).
+- Implementation: `server/src/sound.rs` (`sound_k`, `broadcast_targets`).
+- Sender replies `ok`; all **other** players get `message <K>,<text>\n` (AQ32/AQ33).
 - **Kick `moving <K>` (S11):** K is the push direction relative to the **victim's** facing, using the same cardinal sectors (1 front, 3 right, 5 back, 7 left). Resources on the tile are never moved. Kick returns `ko` if no co-tile players or if any occupant has `in_ritual`.
 
 ## 10. Directory contracts
