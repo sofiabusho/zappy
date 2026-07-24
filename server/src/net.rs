@@ -562,6 +562,22 @@ fn tick_command_completions(
                     conn.queue_out(reply.as_bytes());
                     wrote = true;
                 }
+                Command::Broadcast(text) => {
+                    let messages = crate::broadcast::apply_broadcast(player_id, players, world);
+                    for msg in messages {
+                        deliver_to_player(
+                            poll,
+                            connections,
+                            msg.player_id,
+                            format!("message {},{}\n", msg.k, text).as_bytes(),
+                        );
+                    }
+                    let Some(conn) = connections.get_mut(&token) else {
+                        break;
+                    };
+                    conn.queue_out(b"ok\n");
+                    wrote = true;
+                }
                 Command::Kick => match crate::kick::apply_kick(player_id, players, world) {
                     crate::kick::KickOutcome::Ok { victims } => {
                         for (vid, k) in victims {
@@ -669,9 +685,9 @@ fn complete_command(
             player.turn_left();
             "ok\n".to_string()
         }
-        Command::Fork | Command::Broadcast(_) => "ok\n".to_string(),
-        Command::See | Command::Kick => {
-            unreachable!("see/kick handled in tick_command_completions")
+        Command::Fork => "ok\n".to_string(),
+        Command::See | Command::Kick | Command::Broadcast(_) => {
+            unreachable!("see/kick/broadcast handled in tick_command_completions")
         }
         Command::Inventory => player.inventory_reply(),
         Command::Pick(obj) => {
@@ -982,6 +998,55 @@ mod tests {
         let inv_str = std::str::from_utf8(&inv).unwrap();
         assert!(inv_str.starts_with("{food 1260,"));
         assert!(inv_str.ends_with("}\n"));
+
+        stop_server(running, handle);
+    }
+
+    #[test]
+    fn broadcast_replies_ok_and_delivers_message_to_others() {
+        let mut cfg = test_config(5);
+        cfg.t = 1000; // 7/t = 7ms
+        let (addr, running, handle) = spawn_server(cfg);
+
+        let (mut sender, _, _, _) = handshake(addr, "alpha").expect("sender handshake");
+        let (mut listener, _, _, _) = handshake(addr, "alpha").expect("listener handshake");
+
+        sender.write_all(b"broadcast hello world\n").unwrap();
+        assert_eq!(read_line(&mut sender).expect("ok"), b"ok\n");
+
+        let msg = read_line(&mut listener).expect("message");
+        let msg = std::str::from_utf8(&msg).unwrap();
+        // `message <K>,<text>` with K a single sector digit 0..=8 (RQ15 / AQ33).
+        assert!(msg.starts_with("message "), "got {msg:?}");
+        assert!(msg.ends_with(",hello world\n"), "got {msg:?}");
+        let k = &msg["message ".len().."message ".len() + 1];
+        assert!(
+            k.chars().all(|c| c.is_ascii_digit()),
+            "K should be a digit, got {msg:?}"
+        );
+
+        stop_server(running, handle);
+    }
+
+    #[test]
+    fn broadcaster_does_not_receive_own_message() {
+        let mut cfg = test_config(5);
+        cfg.t = 1000;
+        let (addr, running, handle) = spawn_server(cfg);
+
+        let (mut solo, _, _, _) = handshake(addr, "alpha").expect("handshake");
+        solo.write_all(b"broadcast lonely\n").unwrap();
+        assert_eq!(read_line(&mut solo).expect("ok"), b"ok\n");
+
+        // No `message ...` should follow for the sole broadcaster.
+        solo.set_read_timeout(Some(Duration::from_millis(300)))
+            .unwrap();
+        let mut buf = [0u8; 32];
+        match solo.read(&mut buf) {
+            Ok(0) => {}
+            Err(e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::TimedOut => {}
+            other => panic!("broadcaster should not hear itself, got {other:?}"),
+        }
 
         stop_server(running, handle);
     }

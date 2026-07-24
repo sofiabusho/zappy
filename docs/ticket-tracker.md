@@ -26,8 +26,8 @@
 
 | Field | Value |
 |-------|-------|
-| Last push | S11 kick — agent |
-| Who’s up | Next: claim **S12**, **S13**, or **S14** (ritual) |
+| Last push | S12 broadcast — software-sappho |
+| Who’s up | Next: claim **S13** (fork/connect_nbr) or **S14** (ritual) |
 | Note | Serial turns only; do not start a second 🟢 |
 
 ## 3. Tracks
@@ -159,7 +159,7 @@ Tracks are **focus areas**, not parallel merge lanes.
 | S09 | ✅ | `inventory`, `pick`, `drop` | M | S07 | RQ11, AQ23, AQ24 | agent |
 | S10 | ✅ | Food consumption over time; `death`; eating extends life (126 TU) | M | S05, S06 | RQ07, AQ07, AQ08, AQ30 | agent |
 | S11 | ✅ | `kick` + `moving <K>`; no kick during ritual; resources unaffected | M | S07 | RQ14 | agent |
-| S12 | 🟡 | `broadcast` + directional `message <K>,<text>` (shortest path) | L | S07 | RQ15, AQ32, AQ33 | |
+| S12 | ✅ | `broadcast` + directional `message <K>,<text>` (shortest path) | L | S07 | RQ15, AQ32, AQ33 | software-sappho |
 | S13 | 🟡 | `fork` + ship timer + `connect_nbr` slots | M | S05, S06 | RQ13, AQ26 | |
 | S14 | 🟡 | `enchantment` / ritual table + mid-ritual alone restart | L | S09, S10 | RQ09, AQ25, AQ31 | |
 | S15 | ⬜ | Win detection: 6 teammates at level 8 | S | S14 | RQ02 | |
@@ -295,21 +295,20 @@ Tracks are **focus areas**, not parallel merge lanes.
 
 ## 10. Immediate next work queue
 
-1. ~~**S01**–**S11**~~ ✅ done (through kick)
-2. **S12** — broadcast (🟡 Ready; Deps S07 ✅)
-3. **S13** — fork / connect_nbr (🟡 Ready; Deps S05+S06 ✅)
-4. **S14** — enchantment ritual (🟡 Ready; Deps S09+S10 ✅)
+1. ~~**S01**–**S12**~~ ✅ done (through broadcast)
+2. **S13** — fork / connect_nbr (🟡 Ready; Deps S05+S06 ✅)
+3. **S14** — enchantment ritual (🟡 Ready; Deps S09+S10 ✅)
 
 ## 11. Summary by track
 
 | Track | Total | ✅ | 🟢 | 🟡/⬜ | 🔴 |
 |-------|------:|--:|--:|-----:|--:|
 | A Bootstrap | 4 | 4 | 0 | 0 | 0 |
-| S Server | 16 | 11 | 0 | 5 | 0 |
+| S Server | 16 | 12 | 0 | 4 | 0 |
 | C Client | 5 | 0 | 0 | 5 | 0 |
 | G Graphic | 5 | 0 | 0 | 5 | 0 |
 | I Integration | 2 | 0 | 0 | 2 | 0 |
 | B Bonus | 4 | 0 | 0 | 4 | 0 |
-| **All** | **36** | **15** | **0** | **21** | **0** |
+| **All** | **36** | **16** | **0** | **20** | **0** |
 
 Core (non-bonus) tickets: **32**. Bonus: **4**.
