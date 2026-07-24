@@ -367,6 +367,15 @@ pub fn serve_listener(
             &mut last_game_tu,
             t,
         );
+
+        if let Some(team) = crate::win::winning_team(&players) {
+            eprintln!(
+                "server: team {team} wins ({} players at level {})",
+                crate::win::WIN_PLAYERS,
+                crate::win::WIN_LEVEL
+            );
+            return Ok(());
+        }
     }
 }
 

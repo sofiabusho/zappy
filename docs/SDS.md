@@ -83,7 +83,7 @@ All lines end with `\n`.
 | `ritual` | Enchantment eligibility, consumption, level-up |
 | `broadcast` | Shortest toroidal path → sound sector K ∈ {0..8} |
 | `eggs` | Fork → ship timer 600/t → `add_slot` + spawn-at-egg on next join (`server/src/eggs.rs`) |
-| `win` | Detect ≥6 teammates at level 8 |
+| `win` | Detect ≥6 teammates at level 8 (`server/src/win.rs`); server logs winner and stops the event loop (no AI protocol line in the subject) |
 | `gui` (optional crate area) | Feed map/entity events to graphic client |
 
 ## 5. Data model (conceptual)
