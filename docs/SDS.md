@@ -256,16 +256,19 @@ Resource fields use the canonical inventory order (§5):
 | `plv #<id> <L>` | S→GUI | Player level (characteristics) |
 | `pin #<id> <X> <Y> <f> <jade> … <ammolite>` | S→GUI | Player inventory + position |
 | `pdi #<id>` | S→GUI | Player gone — drop icon |
+| `pbc #<id> <text>` | S→GUI | Player broadcast emit — GUI ripple at emitter tile |
+| `pic #<id> <K> <text>` | S→GUI | Listener hears text from sector K ∈ {0..8} (§9) |
 
 The client (`gui/src/protocol.ts`) parses this subset and **ignores unknown
-verbs**, so G03–G05 (tile/player overlays, broadcasts) can extend the stream
-without breaking older renderers. The map model (`gui/src/world.ts`) is
-toroidal (RQ03). Rendering is plain HTML5 Canvas 2D with distinct icons for
+verbs**, so older renderers stay compatible. The map model (`gui/src/world.ts`)
+is toroidal (RQ03). Rendering is plain HTML5 Canvas 2D with distinct icons for
 food, all six stone types, and players, plus a legend strip (RQ21 / AQ18 /
 AQ28) — no game engine.
 
-- Visualize broadcasts/sounds (G05).
-
+Broadcast/sound visualization (G05 / AQ20): `pbc` draws expanding ripples on
+the emitter; `pic` draws a K-direction arrow (or concentric rings for K=0) on
+the listener, oriented with the player’s facing (§9). A DOM sound feed lists
+recent messages. No game engine.
 ## 13. Testing map
 
 | Concern | Suggested tests |
