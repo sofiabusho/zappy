@@ -26,8 +26,8 @@
 
 | Field | Value |
 |-------|-------|
-| Last push | S06 time/queue — agent |
-| Who’s up | Next: claim **S07** (movement) or **S10** (food/death; needs S05+S06 ✅) |
+| Last push | S07 movement — agent |
+| Who’s up | Next: claim **S08** (see), **S09** (pick/drop), **S10**, **S11**, or **S12** |
 | Note | Serial turns only; do not start a second 🟢 |
 
 ## 3. Tracks
@@ -154,12 +154,12 @@ Tracks are **focus areas**, not parallel merge lanes.
 
 | ID | Status | Ticket | Size | Deps | Coverage | Claimed by |
 |----|--------|--------|------|------|----------|------------|
-| S07 | 🟡 | `advance` / `left` / `right` with delays; toroidal movement | M | S05, S06 | RQ03, RQ11, AQ06, AQ10 | |
-| S08 | ⬜ | `see` vision by level + response formatting | M | S07 | RQ08, AQ09 | |
-| S09 | ⬜ | `inventory`, `pick`, `drop` | M | S07 | RQ11, AQ23, AQ24 | |
+| S07 | ✅ | `advance` / `left` / `right` with delays; toroidal movement | M | S05, S06 | RQ03, RQ11, AQ06, AQ10 | agent |
+| S08 | 🟡 | `see` vision by level + response formatting | M | S07 | RQ08, AQ09 | |
+| S09 | 🟡 | `inventory`, `pick`, `drop` | M | S07 | RQ11, AQ23, AQ24 | |
 | S10 | 🟡 | Food consumption over time; `death`; eating extends life (126 TU) | M | S05, S06 | RQ07, AQ07, AQ08, AQ30 | |
-| S11 | ⬜ | `kick` + `moving <K>`; no kick during ritual; resources unaffected | M | S07 | RQ14 | |
-| S12 | ⬜ | `broadcast` + directional `message <K>,<text>` (shortest path) | L | S07 | RQ15, AQ32, AQ33 | |
+| S11 | 🟡 | `kick` + `moving <K>`; no kick during ritual; resources unaffected | M | S07 | RQ14 | |
+| S12 | 🟡 | `broadcast` + directional `message <K>,<text>` (shortest path) | L | S07 | RQ15, AQ32, AQ33 | |
 | S13 | 🟡 | `fork` + ship timer + `connect_nbr` slots | M | S05, S06 | RQ13, AQ26 | |
 | S14 | ⬜ | `enchantment` / ritual table + mid-ritual alone restart | L | S09, S10 | RQ09, AQ25, AQ31 | |
 | S15 | ⬜ | Win detection: 6 teammates at level 8 | S | S14 | RQ02 | |
@@ -295,24 +295,21 @@ Tracks are **focus areas**, not parallel merge lanes.
 
 ## 10. Immediate next work queue
 
-1. ~~**S01** — server CLI parse~~ ✅ done
-2. ~~**S02** — multiplexed TCP listen + `WELCOME`~~ ✅ done
-3. ~~**S03** — handshake team → nb-client → `x y`~~ ✅ done
-4. ~~**S04** — toroidal world + resource generator~~ ✅ done
-5. ~~**S05** — player spawn state~~ ✅ done
-6. ~~**S06** — time scheduler + cmd queue~~ ✅ done
-7. **S07** — advance/left/right movement (🟡 Ready; Deps S05+S06 ✅)
+1. ~~**S01**–**S07**~~ ✅ done (CLI through toroidal movement)
+2. **S08** — `see` vision (🟡 Ready; Deps S07 ✅)
+3. **S09** — inventory / pick / drop (🟡 Ready; Deps S07 ✅)
+4. **S10** — food / death (🟡 Ready; Deps S05+S06 ✅)
 
 ## 11. Summary by track
 
 | Track | Total | ✅ | 🟢 | 🟡/⬜ | 🔴 |
 |-------|------:|--:|--:|-----:|--:|
 | A Bootstrap | 4 | 4 | 0 | 0 | 0 |
-| S Server | 16 | 6 | 0 | 10 | 0 |
+| S Server | 16 | 7 | 0 | 9 | 0 |
 | C Client | 5 | 0 | 0 | 5 | 0 |
 | G Graphic | 5 | 0 | 0 | 5 | 0 |
 | I Integration | 2 | 0 | 0 | 2 | 0 |
 | B Bonus | 4 | 0 | 0 | 4 | 0 |
-| **All** | **36** | **10** | **0** | **26** | **0** |
+| **All** | **36** | **11** | **0** | **25** | **0** |
 
 Core (non-bonus) tickets: **32**. Bonus: **4**.

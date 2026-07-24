@@ -77,7 +77,7 @@ All lines end with `\n`.
 | `cli` | Arg parse, usage, defaults |
 | `net` | Multiplexed accept/read/write via `mio` poll; send `WELCOME\n` on connect; never blocks the event loop forever (50ms poll timeout) |
 | `world` | Toroidal grid; tile food/stones; density-based generate + respawn rules (S04) |
-| `player` | Spawn loadout (level 1, 1260 life TU, 0 stones), team, position, orientation (S05) |
+| `player` | Spawn loadout; team; position; orientation; `advance`/`left`/`right` on torus (S05/S07) |
 | `commands` | Parse subject verbs, enqueue ≤10, unknown→`ko` (S06); effects filled in by later tickets |
 | `time` | `action_duration(t, cost)` = `cost/t` seconds (S06 / RQ10) |
 | `ritual` | Enchantment eligibility, consumption, level-up |

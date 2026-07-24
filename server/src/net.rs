@@ -306,7 +306,7 @@ pub fn serve_listener(
             }
         }
 
-        tick_command_completions(&mut poll, &mut connections, &mut players, &slots, t);
+        tick_command_completions(&mut poll, &mut connections, &mut players, &slots, &world, t);
     }
 }
 
@@ -502,6 +502,7 @@ fn tick_command_completions(
     connections: &mut HashMap<Token, Connection>,
     players: &mut PlayerSet,
     slots: &TeamSlots,
+    world: &World,
     t: u32,
 ) {
     let now = Instant::now();
@@ -518,7 +519,7 @@ fn tick_command_completions(
             let Some(cmd) = player.queue.poll_complete(now, t) else {
                 break;
             };
-            let reply = complete_command(&cmd, player, slots);
+            let reply = complete_command(&cmd, player, slots, world);
             conn.queue_out(reply.as_bytes());
             wrote = true;
         }
@@ -537,18 +538,30 @@ fn tick_command_completions(
     }
 }
 
-/// Apply stub / available effects and build the response line(s).
+/// Apply command effects and build the response line(s).
 ///
-/// Movement, vision, pick/drop, kick, broadcast, ritual, and fork side-effects
-/// land in later tickets; delays and replies are honored here (S06 skeleton).
-fn complete_command(cmd: &Command, player: &crate::player::Player, slots: &TeamSlots) -> String {
+/// Movement (`advance` / `left` / `right`) is applied here (S07). Vision,
+/// pick/drop, kick, broadcast, ritual, and fork side-effects land later.
+fn complete_command(
+    cmd: &Command,
+    player: &mut crate::player::Player,
+    slots: &TeamSlots,
+    world: &World,
+) -> String {
     match cmd {
-        Command::Advance
-        | Command::Right
-        | Command::Left
-        | Command::Fork
-        | Command::Broadcast(_) => "ok\n".to_string(),
-        Command::Kick => "ok\n".to_string(),
+        Command::Advance => {
+            player.advance(world);
+            "ok\n".to_string()
+        }
+        Command::Right => {
+            player.turn_right();
+            "ok\n".to_string()
+        }
+        Command::Left => {
+            player.turn_left();
+            "ok\n".to_string()
+        }
+        Command::Fork | Command::Broadcast(_) | Command::Kick => "ok\n".to_string(),
         Command::See => "{}\n".to_string(),
         Command::Inventory => player.inventory_reply(),
         Command::Pick(_) | Command::Drop(_) => "ko\n".to_string(),
@@ -796,14 +809,15 @@ mod tests {
     }
 
     #[test]
-    fn advance_ok_after_delay() {
+    fn advance_left_right_reply_ok() {
         let mut cfg = test_config(5);
-        cfg.t = 1000; // 7ms
+        cfg.t = 1000;
         let (addr, running, handle) = spawn_server(cfg);
         let (mut client, _, _, _) = handshake(addr, "alpha").expect("handshake");
-        client.write_all(b"advance\n").unwrap();
-        let line = read_line(&mut client).expect("ok");
-        assert_eq!(line, b"ok\n");
+        for cmd in ["right\n", "advance\n", "left\n"] {
+            client.write_all(cmd.as_bytes()).unwrap();
+            assert_eq!(read_line(&mut client).unwrap(), b"ok\n");
+        }
         stop_server(running, handle);
     }
 }

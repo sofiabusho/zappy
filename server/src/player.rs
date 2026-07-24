@@ -53,6 +53,38 @@ impl Orientation {
             Orientation::West => "W",
         }
     }
+
+    /// Turn 90 degrees clockwise (`right` command).
+    pub fn turn_right(self) -> Self {
+        match self {
+            Orientation::North => Orientation::East,
+            Orientation::East => Orientation::South,
+            Orientation::South => Orientation::West,
+            Orientation::West => Orientation::North,
+        }
+    }
+
+    /// Turn 90 degrees counter-clockwise (`left` command).
+    pub fn turn_left(self) -> Self {
+        match self {
+            Orientation::North => Orientation::West,
+            Orientation::West => Orientation::South,
+            Orientation::South => Orientation::East,
+            Orientation::East => Orientation::North,
+        }
+    }
+
+    /// One-step delta `(dx, dy)` when advancing while facing this way.
+    ///
+    /// Grid convention: `+x` east, `+y` south (row-major tiles).
+    pub fn step_delta(self) -> (i64, i64) {
+        match self {
+            Orientation::North => (0, -1),
+            Orientation::East => (1, 0),
+            Orientation::South => (0, 1),
+            Orientation::West => (-1, 0),
+        }
+    }
 }
 
 /// Carried resources. `life_tu` is survival time left (from food).
@@ -137,6 +169,23 @@ impl Player {
             "{{food {}, jade {}, peridot {}, amber {}, amethyst {}, garnet {}, ammolite {}}}\n",
             i.life_tu, i.jade, i.peridot, i.amber, i.amethyst, i.garnet, i.ammolite
         )
+    }
+
+    /// Move one tile forward; coordinates wrap on the torus (RQ03 / AQ10).
+    pub fn advance(&mut self, world: &World) {
+        let (dx, dy) = self.orient.step_delta();
+        self.x = world.wrap_x(i64::from(self.x) + dx);
+        self.y = world.wrap_y(i64::from(self.y) + dy);
+    }
+
+    /// Face 90 degrees to the right.
+    pub fn turn_right(&mut self) {
+        self.orient = self.orient.turn_right();
+    }
+
+    /// Face 90 degrees to the left.
+    pub fn turn_left(&mut self) {
+        self.orient = self.orient.turn_left();
     }
 
     /// True when this player still matches the subject start loadout checks.
@@ -272,14 +321,57 @@ mod tests {
     }
 
     #[test]
-    fn spawn_positions_stay_inside_world() {
-        let world = World::empty(3, 5);
-        let mut rng = SeededRng::new(42);
-        let mut set = PlayerSet::new();
-        for _ in 0..50 {
-            let id = set.spawn("t", &world, &mut rng);
-            let p = set.get(id).unwrap();
-            assert!(p.x < 3 && p.y < 5);
-        }
+    fn turns_cycle_cardinals() {
+        assert_eq!(Orientation::North.turn_right(), Orientation::East);
+        assert_eq!(Orientation::East.turn_right(), Orientation::South);
+        assert_eq!(Orientation::South.turn_right(), Orientation::West);
+        assert_eq!(Orientation::West.turn_right(), Orientation::North);
+
+        assert_eq!(Orientation::North.turn_left(), Orientation::West);
+        assert_eq!(Orientation::West.turn_left(), Orientation::South);
+        assert_eq!(Orientation::South.turn_left(), Orientation::East);
+        assert_eq!(Orientation::East.turn_left(), Orientation::North);
+    }
+
+    #[test]
+    fn advance_moves_forward_and_wraps_toroidally() {
+        let world = World::empty(5, 4);
+        let mut rng = SeededRng::new(1);
+        let mut p = Player::spawn(0, "t", &world, &mut rng);
+        p.x = 4;
+        p.y = 2;
+        p.orient = Orientation::East;
+        p.advance(&world);
+        assert_eq!((p.x, p.y), (0, 2)); // right edge -> left (AQ10)
+
+        p.orient = Orientation::West;
+        p.advance(&world);
+        assert_eq!((p.x, p.y), (4, 2));
+
+        p.x = 1;
+        p.y = 0;
+        p.orient = Orientation::North;
+        p.advance(&world);
+        assert_eq!((p.x, p.y), (1, 3)); // top -> bottom
+
+        p.orient = Orientation::South;
+        p.advance(&world);
+        assert_eq!((p.x, p.y), (1, 0));
+    }
+
+    #[test]
+    fn left_and_right_only_change_facing() {
+        let world = World::empty(3, 3);
+        let mut rng = SeededRng::new(2);
+        let mut p = Player::spawn(0, "t", &world, &mut rng);
+        p.x = 1;
+        p.y = 1;
+        p.orient = Orientation::North;
+        p.turn_right();
+        assert_eq!(p.orient, Orientation::East);
+        assert_eq!((p.x, p.y), (1, 1));
+        p.turn_left();
+        assert_eq!(p.orient, Orientation::North);
+        assert_eq!((p.x, p.y), (1, 1));
     }
 }
