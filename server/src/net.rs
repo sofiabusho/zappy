@@ -14,7 +14,8 @@ use mio::net::{TcpListener, TcpStream};
 use mio::{Events, Interest, Poll, Token};
 
 use crate::cli::Config;
-use crate::world::World;
+use crate::player::PlayerSet;
+use crate::world::{SeededRng, World};
 
 /// Exact welcome line from the subject handshake table (`WELCOME\n`).
 pub const WELCOME: &[u8] = b"WELCOME\n";
@@ -87,6 +88,8 @@ struct Connection {
     phase: Phase,
     /// Team joined (for slot release on disconnect).
     team: Option<String>,
+    /// Spawned player id after a successful handshake (S05).
+    player_id: Option<u32>,
 }
 
 impl Connection {
@@ -98,6 +101,7 @@ impl Connection {
             inbuf: Vec::new(),
             phase: Phase::AwaitingTeam,
             team: None,
+            player_id: None,
         }
     }
 
@@ -183,6 +187,9 @@ enum HandshakeStep {
 fn progress_handshake(
     conn: &mut Connection,
     slots: &mut TeamSlots,
+    players: &mut PlayerSet,
+    world: &World,
+    rng: &mut SeededRng,
     width: u32,
     height: u32,
 ) -> HandshakeStep {
@@ -194,7 +201,9 @@ fn progress_handshake(
     };
     match slots.try_join(&team) {
         Ok(remaining) => {
+            let id = players.spawn(&team, world, rng);
             conn.team = Some(team);
+            conn.player_id = Some(id);
             conn.phase = Phase::Joined;
             let reply = format!("{remaining}\n{width} {height}\n");
             conn.queue_out(reply.as_bytes());
@@ -238,10 +247,10 @@ pub fn serve_listener(
     let width = config.width;
     let height = config.height;
 
-    // Toroidal map + initial resources (S04). Held for spawn/movement tickets.
-    #[allow(unused_mut)] // S05+/S10 will mutate tiles and call respawn_tick.
-    let mut world = World::generate_random(width, height);
+    let world = World::generate_random(width, height);
     eprintln!("server: {}", world.summary_line());
+    let mut players = PlayerSet::new();
+    let mut rng = SeededRng::new(world.seed ^ 0x0C0F_FEE0_0D15_CAFE);
 
     if let Ok(addr) = listener.local_addr() {
         eprintln!("server: listening on {addr}");
@@ -268,6 +277,9 @@ pub fn serve_listener(
                     &mut poll,
                     &mut connections,
                     &mut slots,
+                    &mut players,
+                    &world,
+                    &mut rng,
                     token,
                     event,
                     width,
@@ -275,9 +287,6 @@ pub fn serve_listener(
                 )?,
             }
         }
-
-        // Retain `world` for the lifetime of the server process (S05+).
-        let _ = &world;
     }
 }
 
@@ -325,9 +334,13 @@ fn drop_connection(
     poll: &mut Poll,
     connections: &mut HashMap<Token, Connection>,
     slots: &mut TeamSlots,
+    players: &mut PlayerSet,
     token: Token,
 ) {
     if let Some(mut conn) = connections.remove(&token) {
+        if let Some(id) = conn.player_id.take() {
+            players.remove(id);
+        }
         if let Some(team) = conn.team.take() {
             slots.release(&team);
         }
@@ -345,10 +358,14 @@ fn set_interest(
         .reregister(&mut conn.stream, token, interest)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn handle_connection_event(
     poll: &mut Poll,
     connections: &mut HashMap<Token, Connection>,
     slots: &mut TeamSlots,
+    players: &mut PlayerSet,
+    world: &World,
+    rng: &mut SeededRng,
     token: Token,
     event: &mio::event::Event,
     width: u32,
@@ -380,13 +397,21 @@ fn handle_connection_event(
         }
 
         if !drop_conn {
-            match progress_handshake(conn, slots, width, height) {
+            match progress_handshake(conn, slots, players, world, rng, width, height) {
                 HandshakeStep::Idle => {}
                 HandshakeStep::JoinedNeedsWrite => {
                     want_writable = conn.pending_out();
                     // Discard any pipelined junk after the team line for now.
                     if !conn.inbuf.is_empty() {
                         conn.inbuf.clear();
+                    }
+                    if let Some(id) = conn.player_id {
+                        if let Some(p) = players.get(id) {
+                            eprintln!(
+                                "server: player {id} team={} at {},{} level={} life_tu={}",
+                                p.team, p.x, p.y, p.level, p.inventory.life_tu
+                            );
+                        }
                     }
                 }
                 HandshakeStep::UnknownTeam(name) => {
@@ -424,7 +449,7 @@ fn handle_connection_event(
     }
 
     if drop_conn {
-        drop_connection(poll, connections, slots, token);
+        drop_connection(poll, connections, slots, players, token);
     }
 
     Ok(())

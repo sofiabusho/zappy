@@ -77,7 +77,7 @@ All lines end with `\n`.
 | `cli` | Arg parse, usage, defaults |
 | `net` | Multiplexed accept/read/write via `mio` poll; send `WELCOME\n` on connect; never blocks the event loop forever (50ms poll timeout) |
 | `world` | Toroidal grid; tile food/stones; density-based generate + respawn rules (S04) |
-| `player` | Position, orientation, level, inventory, food timer, team, queue |
+| `player` | Spawn loadout (level 1, 1260 life TU, 0 stones), team, position, orientation (S05) |
 | `commands` | Parse, validate, enqueue, apply effects |
 | `time` | Global tick from `t`; schedule action completions |
 | `ritual` | Enchantment eligibility, consumption, level-up |
@@ -94,13 +94,17 @@ Tile  { food: 0|1, stones: set≤3 distinct types, players[], eggs[] }
 Team  { name, max_clients, slots_free, members[] }
 Player {
   id, team, x, y, orient ∈ {N,E,S,W},
-  level 1..=8,
-  inventory: {food, jade, peridot, amber, amethyst, garnet, ammolite},
-  food_units_remaining_time,  // 10 food → 1260 TU at start
-  cmd_queue: VecDeque≤10,
+  level 1..=8,   // starts at 1 (S05 / AQ22)
+  inventory: {life_tu, jade, peridot, amber, amethyst, garnet, ammolite},
+  // life_tu starts at 1260 (= 10 food × 126 TU); stones start at 0 (S05 / AQ21)
+  cmd_queue: VecDeque≤10,   // S06
   ritual_state
 }
 ```
+
+Starting loadout constants live in `server/src/player.rs`: `STARTING_FOOD=10`,
+`FOOD_LIFE_TU=126`, `STARTING_LIFE_TU=1260`, `STARTING_LEVEL=1`. A `Player` is
+created when the team handshake succeeds and removed when the TCP client drops.
 
 ### Stones
 
