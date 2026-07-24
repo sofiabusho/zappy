@@ -26,8 +26,8 @@
 
 | Field | Value |
 |-------|-------|
-| Last push | G03 square-click overlay ready to push — agent |
-| Who’s up | Next: claim **G04** (click player overlay) or **G05** (sound viz) |
+| Last push | G04 player-click overlay ready to push — agent |
+| Who’s up | Next: claim **G05** (broadcast/sound viz; Deps G01+S12 ✅) |
 | Note | Serial turns only; do not start a second 🟢 |
 
 ## 3. Tracks
@@ -182,8 +182,8 @@ Tracks are **focus areas**, not parallel merge lanes.
 | G01 | ✅ | GUI↔server connect path + render empty/live map | L | S04, A01 | RQ21, AQ15 | software-sappho |
 | G02 | ✅ | Icons: players, food, all stone types visible | M | G01 | RQ21, AQ18, AQ28 | agent |
 | G03 | ✅ | Click square → floating details with counts | M | G02 | RQ21, AQ16, AQ17 | agent |
-| G04 | 🟡 | Click player → characteristics overlay | M | G02 | RQ21, AQ19 | |
-| G05 | ⬜ | Broadcast/sound visualization | M | G01, S12 | RQ21, AQ20 | |
+| G04 | ✅ | Click player → characteristics overlay | M | G02 | RQ21, AQ19 | agent |
+| G05 | 🟡 | Broadcast/sound visualization | M | G01, S12 | RQ21, AQ20 | |
 
 ### Sprint 5 — Integration
 
@@ -304,7 +304,8 @@ Tracks are **focus areas**, not parallel merge lanes.
 7. ~~**G01**~~ ✅ GUI connect path + Canvas map render (server→GUI side protocol documented)
 8. ~~**G02**~~ ✅ icons: players, food, all six stone types (+ legend)
 9. ~~**G03**~~ ✅ click square → floating details with counts
-10. Next: **G04** (click player overlay) or **G05** (sound viz; Deps G01+S12 ✅)
+10. ~~**G04**~~ ✅ click player → characteristics overlay
+11. Next: **G05** (broadcast/sound viz; Deps G01+S12 ✅)
 
 ## 11. Summary by track
 
@@ -313,9 +314,9 @@ Tracks are **focus areas**, not parallel merge lanes.
 | A Bootstrap | 4 | 4 | 0 | 0 | 0 |
 | S Server | 16 | 16 | 0 | 0 | 0 |
 | C Client | 5 | 5 | 0 | 0 | 0 |
-| G Graphic | 5 | 3 | 0 | 2 | 0 |
+| G Graphic | 5 | 4 | 0 | 1 | 0 |
 | I Integration | 2 | 0 | 0 | 2 | 0 |
 | B Bonus | 4 | 0 | 0 | 4 | 0 |
-| **All** | **36** | **28** | **0** | **8** | **0** |
+| **All** | **36** | **29** | **0** | **7** | **0** |
 
 Core (non-bonus) tickets: **32**. Bonus: **4**.

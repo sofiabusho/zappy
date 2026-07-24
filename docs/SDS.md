@@ -232,7 +232,8 @@ Autonomous loop: maintain food → explore/see → pick resources → broadcast 
 - Click tile → floating details (counts per resource) — G03 overlay lists food
   and each stone type with an explicit count (including zero) so numbers on a
   square are distinguishable (AQ16 / AQ17).
-- Click player → characteristics overlay.
+- Click player → characteristics overlay (G04): floating panel with team, level,
+  position, orientation, and inventory counts (AQ19).
 
 ### Server → GUI side protocol (G01 / G02)
 
@@ -252,6 +253,8 @@ Resource fields use the canonical inventory order (§5):
 | `tna <name>` | S→GUI | A team name |
 | `pnw #<id> <X> <Y> <O> <L> <team>` | S→GUI | Player spawn (icon); `O`∈{1..4}=N,E,S,W |
 | `ppo #<id> <X> <Y> <O>` | S→GUI | Player move / reorient |
+| `plv #<id> <L>` | S→GUI | Player level (characteristics) |
+| `pin #<id> <X> <Y> <f> <jade> … <ammolite>` | S→GUI | Player inventory + position |
 | `pdi #<id>` | S→GUI | Player gone — drop icon |
 
 The client (`gui/src/protocol.ts`) parses this subset and **ignores unknown
