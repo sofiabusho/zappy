@@ -1,9 +1,9 @@
-"""Gathering + broadcast meetup + enchantment AI (C04).
+"""Gathering + broadcast meetup + enchantment + fork AI (C04, C05).
 
-C03 kept the player *alive*; C04 makes it *evolve*. It extends the survival loop
-with the three behaviours the subject's evolution ritual demands (RQ09), all of
-them expressed purely through server commands so no data ever crosses between
-clients out of band (RQ20):
+C03 kept the player *alive*; C04 makes it *evolve*; C05 lets it *grow the
+family*. It extends the survival loop with the behaviours the subject's evolution
+ritual demands (RQ09), all of them expressed purely through server commands so no
+data ever crosses between clients out of band (RQ20):
 
 * **Gather stones.** Beyond eating, the agent now picks up the stone classes its
   current level's ritual needs (:mod:`zappy_client.ritual`), walking to the
@@ -14,6 +14,13 @@ clients out of band (RQ20):
   (RQ15). Players that hear the call move toward the sound's direction ``K`` so
   the group converges — coordination achieved through the game's own sound
   channel, never a side channel.
+* **Fork for family slots (C05).** A group ritual (level ≥2) needs 2, 4, or 6
+  same-level players on one tile, and the win needs six teammates at level 8 — so
+  a beacon short on partners must be able to *summon* more family members. When
+  the beacon polls ``connect_nbr`` and finds no free slot for a teammate to join
+  through, it sends ``fork`` (48/t) to call a ship; after 600/t the family gains
+  a slot and a new member can connect (RQ13 / AQ26). Forking is throttled and
+  yields to survival so a lone player never starves calling ships it cannot use.
 * **Attempt the enchantment.** When the stones are in hand and enough same-level
   players share the tile, it sends ``enchantment`` and rides out the ritual,
   levelling up on the server's ``current level : K`` push (AQ25).
@@ -59,6 +66,12 @@ DEFAULT_HUNGER_THRESHOLD = 300
 # Cycles between meetup broadcasts while acting as a beacon (throttle so the
 # sound channel is not spammed every 7/t).
 DEFAULT_BROADCAST_PERIOD = 5
+
+# Minimum cycles between ``fork`` attempts while a beacon is short on ritual
+# partners. A ship takes 600/t to arrive, so we throttle well above the broadcast
+# cadence: this prevents queuing more ships than the family can plausibly fill
+# while still opening a slot when reinforcements are genuinely needed (RQ13).
+DEFAULT_FORK_PERIOD = 30
 
 
 def meetup_text(level: int) -> str:
@@ -108,6 +121,9 @@ class GatheringAgent(SurvivalAgent):
         Life (TU) below which foraging preempts gathering.
     broadcast_period:
         Cycles between beacon broadcasts (``0`` disables broadcasting).
+    fork_period:
+        Minimum cycles between ``fork`` ship calls when a beacon needs more
+        family members (``0`` disables forking).
     """
 
     def __init__(
@@ -119,6 +135,7 @@ class GatheringAgent(SurvivalAgent):
         inventory_period: int = 25,
         hunger_threshold: int = DEFAULT_HUNGER_THRESHOLD,
         broadcast_period: int = DEFAULT_BROADCAST_PERIOD,
+        fork_period: int = DEFAULT_FORK_PERIOD,
     ) -> None:
         super().__init__(
             pipeline,
@@ -128,6 +145,7 @@ class GatheringAgent(SurvivalAgent):
         )
         self._hunger_threshold = hunger_threshold
         self._broadcast_period = broadcast_period
+        self._fork_period = fork_period
         # Stones we believe we hold, tracked locally from successful picks and
         # re-synced against the server on level-up. Players start with 0 (RQ06).
         self._stones: dict[str, int] = {}
@@ -143,6 +161,8 @@ class GatheringAgent(SurvivalAgent):
         # Last meetup sound direction we heard but have not yet acted on.
         self._heard_meetup_k: int | None = None
         self._last_broadcast_cycle: int | None = None
+        # Cycle of our last `fork` attempt, throttling ship calls (C05 / RQ13).
+        self._last_fork_cycle: int | None = None
 
     # -- perceive-act cycle -----------------------------------------------------
 
@@ -225,7 +245,13 @@ class GatheringAgent(SurvivalAgent):
         others_here = tiles[0].count("player")
         if others_here + 1 >= req.players:
             return self._attempt_enchantment()
-        # Not enough same-level players yet: rally them (RQ15 meetup coordination).
+        # Not enough same-level players yet. A group ritual needs bodies the family
+        # may not have, so first make sure a slot exists for a teammate to join —
+        # forking a ship if none is free (C05 / RQ13). Both branches stay on this
+        # tile so the beacon does not wander off before partners arrive.
+        if req.players > 1 and self._due_to_fork():
+            return self._maybe_fork()
+        # Rally same-level players toward us (RQ15 meetup coordination).
         if self._broadcast_period and self._due_to_broadcast():
             return self._broadcast_meetup()
         # Stay put between broadcasts so arriving partners find us on this tile.
@@ -267,6 +293,55 @@ class GatheringAgent(SurvivalAgent):
         for command in approach_plan(k):
             if self._send_await(command) is None:
                 return False
+        return True
+
+    # -- fork: grow the family when a group ritual is short on players -----------
+
+    def _due_to_fork(self) -> bool:
+        """True when a beacon should (re)check whether to summon a teammate.
+
+        Gated so ship calls stay rare: forking is disabled when ``fork_period`` is
+        zero, deferred while the player is hungry (survival outranks family growth,
+        RQ07), and otherwise throttled to at most once per ``fork_period`` cycles
+        so we never queue more ships than the family can fill (a ship needs 600/t
+        to arrive).
+        """
+        if self._fork_period <= 0:
+            return False
+        if self._life <= self._hunger_threshold:
+            return False
+        if self._last_fork_cycle is None:
+            return True
+        return self._cycle - self._last_fork_cycle >= self._fork_period
+
+    def _maybe_fork(self) -> bool:
+        """Open a family slot for a missing ritual partner, forking if none is free.
+
+        Polls ``connect_nbr`` for the team's free connection slots — a bare
+        integer of the connections still authorized for this family (RQ13). A
+        positive count means a teammate can already join to fill the gap, so we
+        hold the tile and wait. Zero free slots means no reinforcement can arrive,
+        so we ``fork`` (48/t) to call a ship: after 600/t the family gains a slot a
+        new member can occupy (AQ26). Returns ``True`` while alive, ``False`` if a
+        ``death`` push arrived mid-exchange (ending the run); a malformed
+        ``connect_nbr`` reply is non-fatal and simply skips the fork this cycle.
+        """
+        self._last_fork_cycle = self._cycle
+        reply = self._send_await(Command.CONNECT_NBR)
+        if reply is None:
+            return False  # died polling
+        try:
+            free = int(reply.strip())
+        except ValueError:
+            self._log(f"ignoring malformed connect_nbr reply {reply!r}")
+            return self._alive
+        if free > 0:
+            self._log(f"{free} family slot(s) free; awaiting a teammate to rally.")
+            return True
+        fork_reply = self._send_await(Command.FORK)
+        if fork_reply is None:
+            return False
+        self._log("forked: called a ship for a new family member.")
         return True
 
     # -- survival helpers reused for foraging -----------------------------------

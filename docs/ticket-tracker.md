@@ -26,8 +26,8 @@
 
 | Field | Value |
 |-------|-------|
-| Last push | C04 gathering + broadcast meetup + enchantment (gather→rally→evolve; level 1→2 verified live) — software-sappho |
-| Who’s up | Next: claim **C05** (fork strategy for family slots, Deps C03 ✅ S13 ✅) or **G01** (GUI scaffold) |
+| Last push | C05 fork strategy: beacon polls `connect_nbr` and `fork`s a ship when a group ritual is short on partners and no family slot is free (client track complete) — software-sappho |
+| Who’s up | Next: claim **G01** (GUI scaffold, Deps S04 ✅ A01 ✅) — the only remaining unblocked leaf; then G02–G05, then I01 |
 | Note | Serial turns only; do not start a second 🟢 |
 
 ## 3. Tracks
@@ -173,7 +173,7 @@ Tracks are **focus areas**, not parallel merge lanes.
 | C02 | ✅ | Command sender/receiver respecting pipeline ≤10 and delays | M | C01, S06 | RQ11, RQ12 | software-sappho |
 | C03 | ✅ | Survival AI: move, see, pick food, avoid death | M | C02, S10 | RQ07, RQ20, AQ12, AQ13, AQ23 | software-sappho |
 | C04 | ✅ | Gathering + broadcast meetup + enchantment attempts | L | C03, S12, S14 | RQ09, RQ15, RQ20, AQ25 | software-sappho |
-| C05 | ⬜ | Fork strategy when family needs slots | S | C03, S13 | RQ13, AQ26 | |
+| C05 | ✅ | Fork strategy when family needs slots | S | C03, S13 | RQ13, AQ26 | software-sappho |
 
 ### Sprint 4 — Graphic client
 
@@ -300,7 +300,8 @@ Tracks are **focus areas**, not parallel merge lanes.
 3. ~~**C02**~~ ✅ client cmd pipeline (≤10 window + push routing)
 4. ~~**C03**~~ ✅ survival AI (see→eat→seek→wander autonomous loop)
 5. ~~**C04**~~ ✅ gathering + broadcast meetup + enchantment (gather→rally→evolve)
-6. Next tracks: **C05** (fork strategy for family slots, Deps C03 ✅ S13 ✅) or **G01** (GUI) — check Deps in tracker
+6. ~~**C05**~~ ✅ fork strategy (connect_nbr poll → fork ship when family needs a partner slot)
+7. Next track: **G01** (GUI scaffold, Deps S04 ✅ A01 ✅) — client track now complete
 
 ## 11. Summary by track
 
@@ -308,10 +309,10 @@ Tracks are **focus areas**, not parallel merge lanes.
 |-------|------:|--:|--:|-----:|--:|
 | A Bootstrap | 4 | 4 | 0 | 0 | 0 |
 | S Server | 16 | 16 | 0 | 0 | 0 |
-| C Client | 5 | 4 | 0 | 1 | 0 |
+| C Client | 5 | 5 | 0 | 0 | 0 |
 | G Graphic | 5 | 0 | 0 | 5 | 0 |
 | I Integration | 2 | 0 | 0 | 2 | 0 |
 | B Bonus | 4 | 0 | 0 | 4 | 0 |
-| **All** | **36** | **24** | **0** | **12** | **0** |
+| **All** | **36** | **25** | **0** | **11** | **0** |
 
 Core (non-bonus) tickets: **32**. Bonus: **4**.

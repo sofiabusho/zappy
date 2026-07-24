@@ -131,7 +131,9 @@ def test_enchantment_refusal_is_retried_not_fatal() -> None:
 
 def test_broadcasts_meetup_when_partners_needed() -> None:
     # Level 2 ritual needs 2 players; alone with full stones -> beacon broadcast.
-    agent, conn = _agent(["{, , , }", "ok"])
+    # fork_period=0 isolates the C04 rally path (fork strategy is exercised in the
+    # C05 fork tests below).
+    agent, conn = _agent(["{, , , }", "ok"], fork_period=0)
     agent.level = 2
     agent._stones = {"jade": 1, "peridot": 1, "amber": 1}  # type: ignore[attr-defined]
     assert agent.step() is True
@@ -174,6 +176,74 @@ def test_non_meetup_broadcast_is_ignored_for_movement() -> None:
     assert agent._heard_meetup_k is None  # type: ignore[attr-defined]
     # No meetup stored -> it forages/wanders rather than homing on the sound.
     assert conn.sent[0] == "see"
+
+
+# --- fork: grow the family when a group ritual is short on players (C05) --------
+
+
+def test_forks_when_beacon_short_on_partners_and_no_free_slot() -> None:
+    # Level 2 ritual needs 2 players; alone with full stones and no free family
+    # slot (connect_nbr -> 0): summon a teammate by calling a ship (RQ13/AQ26).
+    agent, conn = _agent(["{, , , }", "0", "ok"])
+    agent.level = 2
+    agent._stones = {"jade": 1, "peridot": 1, "amber": 1}  # type: ignore[attr-defined]
+    assert agent.step() is True
+    assert conn.sent == ["see", "connect_nbr", "fork"]
+    assert any("forked" in line for line in agent.logs)  # type: ignore[attr-defined]
+
+
+def test_skips_fork_when_a_slot_is_already_free() -> None:
+    # A free slot (connect_nbr -> 1) means a teammate can already join: hold the
+    # tile and wait rather than queue a redundant ship.
+    agent, conn = _agent(["{, , , }", "1"])
+    agent.level = 2
+    agent._stones = {"jade": 1, "peridot": 1, "amber": 1}  # type: ignore[attr-defined]
+    assert agent.step() is True
+    assert conn.sent == ["see", "connect_nbr"]
+    assert "fork" not in conn.sent
+
+
+def test_fork_disabled_falls_back_to_broadcast() -> None:
+    # fork_period=0 disables ship calls: the beacon rallies via broadcast instead.
+    agent, conn = _agent(["{, , , }", "ok"], fork_period=0)
+    agent.level = 2
+    agent._stones = {"jade": 1, "peridot": 1, "amber": 1}  # type: ignore[attr-defined]
+    assert agent.step() is True
+    assert conn.sent == ["see", "broadcast zappy L2"]
+    assert "connect_nbr" not in conn.sent
+
+
+def test_fork_is_throttled_between_attempts() -> None:
+    # Having just forked, a follow-up cycle within fork_period must not fork again;
+    # it rallies with a broadcast instead (avoids queuing more ships than fillable).
+    agent, conn = _agent(["{, , , }", "ok"], fork_period=10)
+    agent.level = 2
+    agent._stones = {"jade": 1, "peridot": 1, "amber": 1}  # type: ignore[attr-defined]
+    agent._last_fork_cycle = 0  # type: ignore[attr-defined]  # forked at cycle 0
+    # _cycle stays 0 (< fork_period since last fork) -> not due to fork.
+    assert agent.step() is True
+    assert conn.sent == ["see", "broadcast zappy L2"]
+
+
+def test_solo_ritual_never_forks() -> None:
+    # Level 1 ritual needs a single player: no partners to summon, so no ship call.
+    agent, conn = _agent(["{, , , }", "evolution in progress"])
+    agent._stones = {"jade": 1}  # type: ignore[attr-defined]
+    assert agent.step() is True
+    assert conn.sent == ["see", "enchantment"]
+    assert "connect_nbr" not in conn.sent
+
+
+def test_malformed_connect_nbr_is_non_fatal() -> None:
+    # A non-integer connect_nbr reply is ignored (skip the fork), not treated as
+    # death: the agent survives the cycle.
+    agent, conn = _agent(["{, , , }", "not-a-number"])
+    agent.level = 2
+    agent._stones = {"jade": 1, "peridot": 1, "amber": 1}  # type: ignore[attr-defined]
+    assert agent.step() is True
+    assert conn.sent == ["see", "connect_nbr"]
+    assert agent.alive is True
+    assert any("malformed connect_nbr" in line for line in agent.logs)  # type: ignore[attr-defined]
 
 
 # --- survival still takes priority ---------------------------------------------
