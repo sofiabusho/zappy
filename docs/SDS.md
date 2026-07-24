@@ -231,6 +231,29 @@ Autonomous loop: maintain food → explore/see → pick resources → broadcast 
 - Icons for players, food, stones.
 - Click tile → floating details (counts per resource).
 - Click player → characteristics overlay.
+
+### Server → GUI side protocol (G01)
+
+The raw subject does not fix a GUI wire format, so the graphic track owns a
+**documented side channel** that never touches the AI player protocol (§3).
+It is line-based, `\n`-terminated ASCII. Because a browser Canvas cannot open
+a raw TCP socket, the GUI reaches the server through a WebSocket bridge that
+forwards these lines verbatim (`gui/README.md`).
+
+Resource fields use the canonical inventory order (§5):
+`food jade peridot amber amethyst garnet ammolite`.
+
+| Line | Direction | Meaning |
+|------|-----------|---------|
+| `msz <X> <Y>` | S→GUI | Map size; grid becomes drawable |
+| `bct <X> <Y> <f> <jade> <peridot> <amber> <amethyst> <garnet> <ammolite>` | S→GUI | Tile resource counts |
+| `tna <name>` | S→GUI | A team name |
+
+The client (`gui/src/protocol.ts`) parses this subset now and **ignores
+unknown verbs**, so richer entity/broadcast events added for G02–G05 (players,
+inventories, sounds) extend the stream without breaking older renderers. The
+map model (`gui/src/world.ts`) is toroidal (RQ03): tile lookups wrap on both
+axes. Rendering is plain HTML5 Canvas 2D — no game engine (RQ21).
 - Visualize broadcasts/sounds.
 
 ## 13. Testing map

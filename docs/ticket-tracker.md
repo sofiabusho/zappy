@@ -26,8 +26,8 @@
 
 | Field | Value |
 |-------|-------|
-| Last push | C05 fork strategy: beacon polls `connect_nbr` and `fork`s a ship when a group ritual is short on partners and no family slot is free (client track complete) — software-sappho |
-| Who’s up | Next: claim **G01** (GUI scaffold, Deps S04 ✅ A01 ✅) — the only remaining unblocked leaf; then G02–G05, then I01 |
+| Last push | G01 GUI connect+render: documented server→GUI side protocol (`msz`/`bct`/`tna`), toroidal world model, Canvas 2D map render (no game engine), WebSocket-bridge + offline-demo transports; render verified headless — software-sappho |
+| Who’s up | Next: claim **G02** (icons: players, food, all stone types, Deps G01 ✅) — then G03–G05, then I01 |
 | Note | Serial turns only; do not start a second 🟢 |
 
 ## 3. Tracks
@@ -179,7 +179,7 @@ Tracks are **focus areas**, not parallel merge lanes.
 
 | ID | Status | Ticket | Size | Deps | Coverage | Claimed by |
 |----|--------|--------|------|------|----------|------------|
-| G01 | 🟡 | GUI↔server connect path + render empty/live map | L | S04, A01 | RQ21, AQ15 | |
+| G01 | ✅ | GUI↔server connect path + render empty/live map | L | S04, A01 | RQ21, AQ15 | software-sappho |
 | G02 | ⬜ | Icons: players, food, all stone types visible | M | G01 | RQ21, AQ18, AQ28 | |
 | G03 | ⬜ | Click square → floating details with counts | M | G02 | RQ21, AQ16, AQ17 | |
 | G04 | ⬜ | Click player → characteristics overlay | M | G02 | RQ21, AQ19 | |
@@ -301,7 +301,8 @@ Tracks are **focus areas**, not parallel merge lanes.
 4. ~~**C03**~~ ✅ survival AI (see→eat→seek→wander autonomous loop)
 5. ~~**C04**~~ ✅ gathering + broadcast meetup + enchantment (gather→rally→evolve)
 6. ~~**C05**~~ ✅ fork strategy (connect_nbr poll → fork ship when family needs a partner slot)
-7. Next track: **G01** (GUI scaffold, Deps S04 ✅ A01 ✅) — client track now complete
+7. ~~**G01**~~ ✅ GUI connect path + Canvas map render (server→GUI side protocol documented)
+8. Next: **G02** (icons: players, food, all stone types, Deps G01 ✅)
 
 ## 11. Summary by track
 
@@ -310,9 +311,9 @@ Tracks are **focus areas**, not parallel merge lanes.
 | A Bootstrap | 4 | 4 | 0 | 0 | 0 |
 | S Server | 16 | 16 | 0 | 0 | 0 |
 | C Client | 5 | 5 | 0 | 0 | 0 |
-| G Graphic | 5 | 0 | 0 | 5 | 0 |
+| G Graphic | 5 | 1 | 0 | 4 | 0 |
 | I Integration | 2 | 0 | 0 | 2 | 0 |
 | B Bonus | 4 | 0 | 0 | 4 | 0 |
-| **All** | **36** | **25** | **0** | **11** | **0** |
+| **All** | **36** | **26** | **0** | **10** | **0** |
 
 Core (non-bonus) tickets: **32**. Bonus: **4**.

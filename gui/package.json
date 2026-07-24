@@ -4,6 +4,7 @@
   "private": true,
   "description": "Zappy graphic client (TypeScript + HTML5 Canvas)",
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "lint": "eslint . && tsc --noEmit",
     "test": "tsc --noEmit"
   },
