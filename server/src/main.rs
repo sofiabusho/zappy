@@ -3,11 +3,12 @@
 //! Parses the command line (S01 / RQ17 / AQ01). On a valid line it starts the
 //! multiplexed TCP event loop (S02/S03 / RQ16 / RQ19 / AQ02 / AQ14), which
 //! accepts clients, sends `WELCOME\n`, and completes the team handshake.
-//! Gameplay arrives in later tickets.
+//! Bind conflicts print `ERROR : Address already in use` (S16 / AQ05).
 
 use std::process::ExitCode;
 
 use zappy_server::cli::{self, CliError};
+use zappy_server::harden;
 use zappy_server::net;
 
 fn main() -> ExitCode {
@@ -27,7 +28,7 @@ fn main() -> ExitCode {
             match net::serve(&config) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(err) => {
-                    eprintln!("server: {err}");
+                    eprintln!("{}", harden::format_serve_error(&err));
                     ExitCode::FAILURE
                 }
             }

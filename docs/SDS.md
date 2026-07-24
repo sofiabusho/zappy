@@ -24,7 +24,9 @@ Technical design derived from `docs/raw/requirements.md`. When this conflicts wi
 
 - Default `t = 100` if omitted.
 - Missing/invalid args → usage on stdout/stderr (match audit sample closely).
-- Second process on same port → bind error (`Address already in use` or equivalent).
+- Second process on same port → stderr `ERROR : Address already in use` (S16 / AQ05).
+- No `exec*` / `std::process::Command` in server Rust sources (S16 / AQ03); wrapper runs the binary without shell `exec`.
+- Accept loop stays responsive under local connection floods / `siege` against own localhost only (AQ04).
 
 ### AI client
 

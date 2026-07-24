@@ -20,6 +20,14 @@ queue; unknown commands get `ko` (S06).
 ./server/server            # no args → usage, exit 1
 ```
 
+## Hardening (S16)
+
+- Port already taken → stderr `ERROR : Address already in use` (exit 1).
+- No `exec*` / `std::process::Command` in Rust sources; the wrapper runs the
+  binary without shell `exec`.
+- Local stress only: `siege -b 127.0.0.1:<port>` against **this** server on
+  localhost. Never siege hosts you do not own.
+
 ## Lint / test
 
 ```bash

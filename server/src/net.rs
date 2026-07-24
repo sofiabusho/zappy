@@ -1248,4 +1248,38 @@ mod tests {
         }
         stop_server(running, handle);
     }
+
+    #[test]
+    fn second_bind_reports_address_already_in_use() {
+        let holder = std::net::TcpListener::bind("127.0.0.1:0").expect("first bind");
+        let addr = holder.local_addr().expect("addr");
+        let err = std::net::TcpListener::bind(addr).expect_err("second bind must fail");
+        assert_eq!(err.kind(), ErrorKind::AddrInUse);
+        assert_eq!(
+            crate::harden::format_serve_error(&err),
+            "ERROR : Address already in use"
+        );
+        drop(holder);
+    }
+
+    #[test]
+    fn survives_connection_flood_then_still_handshakes() {
+        // Local stress stand-in for `siege -b 127.0.0.1:port` (AQ04): many rapid
+        // connects must not wedge the non-blocking accept loop.
+        let (addr, running, handle) = spawn_server(test_config(20));
+        for _ in 0..120 {
+            if let Ok(mut s) = std::net::TcpStream::connect(addr) {
+                let _ = s.set_read_timeout(Some(Duration::from_millis(50)));
+                let mut buf = [0u8; 16];
+                let _ = s.read(&mut buf);
+            }
+        }
+        thread::sleep(Duration::from_millis(100));
+        let (mut client, nb, _, _) = handshake(addr, "alpha").expect("handshake after flood");
+        assert!(nb < 20);
+        client.write_all(b"connect_nbr\n").unwrap();
+        let line = read_line(&mut client).expect("connect_nbr");
+        assert!(line.ends_with(b"\n"));
+        stop_server(running, handle);
+    }
 }

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Wrapper for the Zappy server (S01).
+# Wrapper for the Zappy server (S01 / S16).
 # Invoked as ./server/server (root ./server is the directory on Unix).
-# Builds the Rust binary if needed, then execs it with all CLI args.
+# Builds the Rust binary if needed, then runs it with all CLI args.
+# Does **not** use shell `exec` / POSIX exec* — the game server itself never
+# spawns another server (RQ16 / AQ03).
 # Real argument parsing lives in src/cli.rs; usage/exit behavior comes from there.
 set -euo pipefail
 
@@ -15,4 +17,4 @@ if ! cargo build --release --quiet --manifest-path "${ROOT}/Cargo.toml" 1>&2; th
   exit 1
 fi
 
-exec "${BIN}" "$@"
+"${BIN}" "$@"

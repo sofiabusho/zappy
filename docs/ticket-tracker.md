@@ -26,8 +26,8 @@
 
 | Field | Value |
 |-------|-------|
-| Last push | S15 win — agent |
-| Who’s up | Next: claim **S16** (harden) |
+| Last push | S16 harden — agent |
+| Who’s up | Next: claim **C01** (AI client) or **G01** (GUI scaffold) |
 | Note | Serial turns only; do not start a second 🟢 |
 
 ## 3. Tracks
@@ -163,7 +163,7 @@ Tracks are **focus areas**, not parallel merge lanes.
 | S13 | ✅ | `fork` + ship timer + `connect_nbr` slots | M | S05, S06 | RQ13, AQ26 | agent |
 | S14 | ✅ | `enchantment` / ritual table + mid-ritual alone restart | L | S09, S10 | RQ09, AQ25, AQ31 | agent |
 | S15 | ✅ | Win detection: 6 teammates at level 8 | S | S14 | RQ02 | agent |
-| S16 | ⬜ | Harden: no exec paths; bind conflict message; local stress sanity | M | S02 | RQ16, AQ03, AQ04, AQ05 | |
+| S16 | ✅ | Harden: no exec paths; bind conflict message; local stress sanity | M | S02 | RQ16, AQ03, AQ04, AQ05 | agent |
 
 ### Sprint 3 — AI client
 
@@ -295,19 +295,19 @@ Tracks are **focus areas**, not parallel merge lanes.
 
 ## 10. Immediate next work queue
 
-1. ~~**S01**–**S15**~~ ✅ done (through win detection)
-2. **S16** — harden (⬜; Deps S02 ✅)
+1. ~~**S01**–**S16**~~ ✅ **server track complete**
+2. Next tracks: **C01** (AI client) or **G01** (GUI) — check Deps in tracker
 
 ## 11. Summary by track
 
 | Track | Total | ✅ | 🟢 | 🟡/⬜ | 🔴 |
 |-------|------:|--:|--:|-----:|--:|
 | A Bootstrap | 4 | 4 | 0 | 0 | 0 |
-| S Server | 16 | 15 | 0 | 1 | 0 |
+| S Server | 16 | 16 | 0 | 0 | 0 |
 | C Client | 5 | 0 | 0 | 5 | 0 |
 | G Graphic | 5 | 0 | 0 | 5 | 0 |
 | I Integration | 2 | 0 | 0 | 2 | 0 |
 | B Bonus | 4 | 0 | 0 | 4 | 0 |
-| **All** | **36** | **19** | **0** | **17** | **0** |
+| **All** | **36** | **20** | **0** | **16** | **0** |
 
 Core (non-bonus) tickets: **32**. Bonus: **4**.
