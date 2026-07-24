@@ -128,6 +128,48 @@ impl Inventory {
     pub fn total_stones(&self) -> u32 {
         self.jade + self.peridot + self.amber + self.amethyst + self.garnet + self.ammolite
     }
+
+    pub fn add_stone(&mut self, kind: StoneKind) {
+        match kind {
+            StoneKind::Jade => self.jade += 1,
+            StoneKind::Peridot => self.peridot += 1,
+            StoneKind::Amber => self.amber += 1,
+            StoneKind::Amethyst => self.amethyst += 1,
+            StoneKind::Garnet => self.garnet += 1,
+            StoneKind::Ammolite => self.ammolite += 1,
+        }
+    }
+
+    /// Remove one stone of `kind`. Returns `false` if none left.
+    pub fn take_stone(&mut self, kind: StoneKind) -> bool {
+        let slot = match kind {
+            StoneKind::Jade => &mut self.jade,
+            StoneKind::Peridot => &mut self.peridot,
+            StoneKind::Amber => &mut self.amber,
+            StoneKind::Amethyst => &mut self.amethyst,
+            StoneKind::Garnet => &mut self.garnet,
+            StoneKind::Ammolite => &mut self.ammolite,
+        };
+        if *slot == 0 {
+            return false;
+        }
+        *slot -= 1;
+        true
+    }
+
+    /// Gain one food unit of life (+[`FOOD_LIFE_TU`]).
+    pub fn add_food_life(&mut self) {
+        self.life_tu = self.life_tu.saturating_add(FOOD_LIFE_TU);
+    }
+
+    /// Spend one food unit of life (-[`FOOD_LIFE_TU`]). Returns `false` if not enough.
+    pub fn take_food_life(&mut self) -> bool {
+        if self.life_tu < FOOD_LIFE_TU {
+            return false;
+        }
+        self.life_tu -= FOOD_LIFE_TU;
+        true
+    }
 }
 
 /// In-world player created when a client finishes the team handshake.
@@ -186,6 +228,57 @@ impl Player {
     /// Face 90 degrees to the left.
     pub fn turn_left(&mut self) {
         self.orient = self.orient.turn_left();
+    }
+
+    /// Pick `object` from the current tile into inventory (`ok` / `ko`).
+    ///
+    /// `food` adds [`FOOD_LIFE_TU`] life; stones increment the matching count.
+    pub fn pick_object(&mut self, object: &str, world: &mut World) -> bool {
+        let tile = world.tile_mut(self.x, self.y);
+        if object == "food" {
+            if !tile.take_food() {
+                return false;
+            }
+            self.inventory.add_food_life();
+            return true;
+        }
+        let Some(kind) = StoneKind::parse(object) else {
+            return false;
+        };
+        if !tile.take_stone(kind) {
+            return false;
+        }
+        self.inventory.add_stone(kind);
+        true
+    }
+
+    /// Drop `object` from inventory onto the current tile (`ok` / `ko`).
+    ///
+    /// Honors tile rules: at most one food; at most one of each stone type;
+    /// at most three stone kinds per tile.
+    pub fn drop_object(&mut self, object: &str, world: &mut World) -> bool {
+        if object == "food" {
+            if !self.inventory.take_food_life() {
+                return false;
+            }
+            if !world.tile_mut(self.x, self.y).try_add_food() {
+                // Restore life if the tile already has food.
+                self.inventory.add_food_life();
+                return false;
+            }
+            return true;
+        }
+        let Some(kind) = StoneKind::parse(object) else {
+            return false;
+        };
+        if !self.inventory.take_stone(kind) {
+            return false;
+        }
+        if !world.tile_mut(self.x, self.y).try_add_stone(kind) {
+            self.inventory.add_stone(kind);
+            return false;
+        }
+        true
     }
 
     /// True when this player still matches the subject start loadout checks.
@@ -373,5 +466,49 @@ mod tests {
         p.turn_left();
         assert_eq!(p.orient, Orientation::North);
         assert_eq!((p.x, p.y), (1, 1));
+    }
+
+    #[test]
+    fn spawn_positions_stay_inside_world() {
+        let world = World::empty(3, 5);
+        let mut rng = SeededRng::new(42);
+        let mut set = PlayerSet::new();
+        for _ in 0..50 {
+            let id = set.spawn("t", &world, &mut rng);
+            let p = set.get(id).unwrap();
+            assert!(p.x < 3 && p.y < 5);
+        }
+    }
+
+    #[test]
+    fn pick_and_drop_food_and_stones() {
+        let mut world = World::empty(4, 4);
+        world.tile_mut(1, 1).try_add_food();
+        world.tile_mut(1, 1).try_add_stone(StoneKind::Amber);
+
+        let mut rng = SeededRng::new(3);
+        let mut p = Player::spawn(0, "t", &world, &mut rng);
+        p.x = 1;
+        p.y = 1;
+
+        assert!(p.pick_object("food", &mut world));
+        assert_eq!(p.inventory.life_tu, STARTING_LIFE_TU + FOOD_LIFE_TU);
+        assert!(!world.tile(1, 1).food);
+        assert!(!p.pick_object("food", &mut world)); // gone
+
+        assert!(p.pick_object("amber", &mut world));
+        assert_eq!(p.inventory.amber, 1);
+        assert!(!world.tile(1, 1).has_stone(StoneKind::Amber));
+
+        assert!(p.drop_object("amber", &mut world));
+        assert_eq!(p.inventory.amber, 0);
+        assert!(world.tile(1, 1).has_stone(StoneKind::Amber));
+
+        assert!(p.drop_object("food", &mut world));
+        assert_eq!(p.inventory.life_tu, STARTING_LIFE_TU);
+        assert!(world.tile(1, 1).food);
+
+        assert!(!p.pick_object("nope", &mut world));
+        assert!(!p.drop_object("jade", &mut world)); // none carried
     }
 }

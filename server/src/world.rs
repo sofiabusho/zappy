@@ -92,6 +92,11 @@ impl StoneKind {
     pub fn from_index(i: usize) -> Option<StoneKind> {
         Self::ALL.get(i).copied()
     }
+
+    /// Parse a subject stone name (`jade`, …).
+    pub fn parse(name: &str) -> Option<StoneKind> {
+        Self::ALL.into_iter().find(|k| k.as_str() == name)
+    }
 }
 
 impl fmt::Display for StoneKind {

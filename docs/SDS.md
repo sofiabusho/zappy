@@ -106,6 +106,11 @@ Starting loadout constants live in `server/src/player.rs`: `STARTING_FOOD=10`,
 `FOOD_LIFE_TU=126`, `STARTING_LIFE_TU=1260`, `STARTING_LEVEL=1`. A `Player` is
 created when the team handshake succeeds and removed when the TCP client drops.
 
+`pick` / `drop` (S09): move `food` or a stone name between the current tile and
+inventory. Picking food adds 126 life TU; dropping food spends 126 life TU and
+requires an empty food slot on the tile. Stone placement still obeys the tile
+rules (one per type, ≤3 kinds).
+
 ### Stones
 
 `jade | peridot | amber | amethyst | garnet | ammolite`

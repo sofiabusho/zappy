@@ -253,7 +253,7 @@ pub fn serve_listener(
     let width = config.width;
     let height = config.height;
 
-    let world = World::generate_random(width, height);
+    let mut world = World::generate_random(width, height);
     eprintln!("server: {}", world.summary_line());
     let mut players = PlayerSet::new();
     let mut rng = SeededRng::new(world.seed ^ 0x0C0F_FEE0_0D15_CAFE);
@@ -306,7 +306,14 @@ pub fn serve_listener(
             }
         }
 
-        tick_command_completions(&mut poll, &mut connections, &mut players, &slots, &world, t);
+        tick_command_completions(
+            &mut poll,
+            &mut connections,
+            &mut players,
+            &slots,
+            &mut world,
+            t,
+        );
     }
 }
 
@@ -502,7 +509,7 @@ fn tick_command_completions(
     connections: &mut HashMap<Token, Connection>,
     players: &mut PlayerSet,
     slots: &TeamSlots,
-    world: &World,
+    world: &mut World,
     t: u32,
 ) {
     let now = Instant::now();
@@ -559,13 +566,12 @@ fn tick_command_completions(
 
 /// Apply command effects and build the response line(s).
 ///
-/// Movement (`advance` / `left` / `right`) is applied here (S07). Vision,
-/// pick/drop, kick, broadcast, ritual, and fork side-effects land later.
+/// Movement (S07), pick/drop/inventory (S09). Vision is handled separately.
 fn complete_command(
     cmd: &Command,
     player: &mut crate::player::Player,
     slots: &TeamSlots,
-    world: &World,
+    world: &mut World,
 ) -> String {
     match cmd {
         Command::Advance => {
@@ -583,7 +589,20 @@ fn complete_command(
         Command::Fork | Command::Broadcast(_) | Command::Kick => "ok\n".to_string(),
         Command::See => unreachable!("see handled in tick_command_completions"),
         Command::Inventory => player.inventory_reply(),
-        Command::Pick(_) | Command::Drop(_) => "ko\n".to_string(),
+        Command::Pick(obj) => {
+            if player.pick_object(obj, world) {
+                "ok\n".to_string()
+            } else {
+                "ko\n".to_string()
+            }
+        }
+        Command::Drop(obj) => {
+            if player.drop_object(obj, world) {
+                "ok\n".to_string()
+            } else {
+                "ko\n".to_string()
+            }
+        }
         Command::Enchantment => "evolution in progress\n".to_string(),
         Command::ConnectNbr => format!("{}\n", slots.free(&player.team)),
     }
