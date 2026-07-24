@@ -74,7 +74,7 @@ All lines end with `\n`.
 | Module | Responsibility |
 |--------|----------------|
 | `cli` | Arg parse, usage, defaults |
-| `net` | Multiplexed accept/read/write; never blocks the event loop forever |
+| `net` | Multiplexed accept/read/write via `mio` poll; send `WELCOME\n` on connect; never blocks the event loop forever (50ms poll timeout) |
 | `world` | Toroidal grid; tiles; resource spawn/respawn rules |
 | `player` | Position, orientation, level, inventory, food timer, team, queue |
 | `commands` | Parse, validate, enqueue, apply effects |

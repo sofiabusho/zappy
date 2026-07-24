@@ -13,3 +13,8 @@ path = "src/lib.rs"
 [[bin]]
 name = "zappy-server"
 path = "src/main.rs"
+
+[dependencies]
+# Multiplexed non-blocking TCP (S02 / RQ16). `os-poll` + `net` are required for
+# Poll + TcpListener/TcpStream on all supported platforms.
+mio = { version = "1", features = ["net", "os-poll"] }

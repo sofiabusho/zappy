@@ -1,13 +1,13 @@
 //! Zappy server binary entrypoint.
 //!
-//! S01 scope: parse and validate the command line (RQ17 / AQ01). On bad or
-//! missing arguments it prints [`cli::USAGE`] and exits non-zero. On a valid
-//! line it echoes the resolved configuration and exits; the TCP event loop is
-//! added in S02 and later.
+//! Parses the command line (S01 / RQ17 / AQ01). On a valid line it starts the
+//! multiplexed TCP event loop (S02 / RQ16 / AQ02), which accepts clients and
+//! sends `WELCOME\n`. Handshake completion and gameplay arrive in later tickets.
 
 use std::process::ExitCode;
 
 use zappy_server::cli::{self, CliError};
+use zappy_server::net;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -23,8 +23,13 @@ fn main() -> ExitCode {
                 config.clients_per_team,
                 config.t,
             );
-            // Networking / game loop start in S02+.
-            ExitCode::SUCCESS
+            match net::serve(&config) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(err) => {
+                    eprintln!("server: {err}");
+                    ExitCode::FAILURE
+                }
+            }
         }
         Err(err) => {
             // Bare `./server` shows usage only; other errors add a diagnostic
