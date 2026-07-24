@@ -26,8 +26,8 @@
 
 | Field | Value |
 |-------|-------|
-| Last push | S05 player spawn — agent |
-| Who’s up | Next: claim **S06** (time/queue) |
+| Last push | S06 time/queue — agent |
+| Who’s up | Next: claim **S07** (movement) or **S10** (food/death; needs S05+S06 ✅) |
 | Note | Serial turns only; do not start a second 🟢 |
 
 ## 3. Tracks
@@ -148,19 +148,19 @@ Tracks are **focus areas**, not parallel merge lanes.
 | S03 | ✅ | Handshake: team → nb-client → `x y`; invalid team error + disconnect | M | S02 | RQ19, AQ14 | agent |
 | S04 | ✅ | Toroidal world + resource generator with documented rules; six stone types + food | L | S01 | RQ03, RQ04, RQ05, AQ10, AQ27, AQ28, AQ29 | agent |
 | S05 | ✅ | Player spawn state: level 1, 10 food→1260 TU, 0 stones; team membership | M | S03, S04 | RQ06, AQ21, AQ22 | agent |
-| S06 | 🟡 | Time scheduler (`t`) + per-player cmd queue (max 10) + unknown→`ko` | L | S03 | RQ10, RQ11, RQ12, AQ06 | |
+| S06 | ✅ | Time scheduler (`t`) + per-player cmd queue (max 10) + unknown→`ko` | L | S03 | RQ10, RQ11, RQ12, AQ06 | agent |
 
 ### Sprint 2 — Server gameplay
 
 | ID | Status | Ticket | Size | Deps | Coverage | Claimed by |
 |----|--------|--------|------|------|----------|------------|
-| S07 | ⬜ | `advance` / `left` / `right` with delays; toroidal movement | M | S05, S06 | RQ03, RQ11, AQ06, AQ10 | |
+| S07 | 🟡 | `advance` / `left` / `right` with delays; toroidal movement | M | S05, S06 | RQ03, RQ11, AQ06, AQ10 | |
 | S08 | ⬜ | `see` vision by level + response formatting | M | S07 | RQ08, AQ09 | |
 | S09 | ⬜ | `inventory`, `pick`, `drop` | M | S07 | RQ11, AQ23, AQ24 | |
-| S10 | ⬜ | Food consumption over time; `death`; eating extends life (126 TU) | M | S05, S06 | RQ07, AQ07, AQ08, AQ30 | |
+| S10 | 🟡 | Food consumption over time; `death`; eating extends life (126 TU) | M | S05, S06 | RQ07, AQ07, AQ08, AQ30 | |
 | S11 | ⬜ | `kick` + `moving <K>`; no kick during ritual; resources unaffected | M | S07 | RQ14 | |
 | S12 | ⬜ | `broadcast` + directional `message <K>,<text>` (shortest path) | L | S07 | RQ15, AQ32, AQ33 | |
-| S13 | ⬜ | `fork` + ship timer + `connect_nbr` slots | M | S05, S06 | RQ13, AQ26 | |
+| S13 | 🟡 | `fork` + ship timer + `connect_nbr` slots | M | S05, S06 | RQ13, AQ26 | |
 | S14 | ⬜ | `enchantment` / ritual table + mid-ritual alone restart | L | S09, S10 | RQ09, AQ25, AQ31 | |
 | S15 | ⬜ | Win detection: 6 teammates at level 8 | S | S14 | RQ02 | |
 | S16 | ⬜ | Harden: no exec paths; bind conflict message; local stress sanity | M | S02 | RQ16, AQ03, AQ04, AQ05 | |
@@ -300,18 +300,19 @@ Tracks are **focus areas**, not parallel merge lanes.
 3. ~~**S03** — handshake team → nb-client → `x y`~~ ✅ done
 4. ~~**S04** — toroidal world + resource generator~~ ✅ done
 5. ~~**S05** — player spawn state~~ ✅ done
-6. **S06** — time scheduler + cmd queue (🟡 Ready; Deps S03 ✅)
+6. ~~**S06** — time scheduler + cmd queue~~ ✅ done
+7. **S07** — advance/left/right movement (🟡 Ready; Deps S05+S06 ✅)
 
 ## 11. Summary by track
 
 | Track | Total | ✅ | 🟢 | 🟡/⬜ | 🔴 |
 |-------|------:|--:|--:|-----:|--:|
 | A Bootstrap | 4 | 4 | 0 | 0 | 0 |
-| S Server | 16 | 5 | 0 | 11 | 0 |
+| S Server | 16 | 6 | 0 | 10 | 0 |
 | C Client | 5 | 0 | 0 | 5 | 0 |
 | G Graphic | 5 | 0 | 0 | 5 | 0 |
 | I Integration | 2 | 0 | 0 | 2 | 0 |
 | B Bonus | 4 | 0 | 0 | 4 | 0 |
-| **All** | **36** | **9** | **0** | **27** | **0** |
+| **All** | **36** | **10** | **0** | **26** | **0** |
 
 Core (non-bonus) tickets: **32**. Bonus: **4**.

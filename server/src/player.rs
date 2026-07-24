@@ -1,10 +1,10 @@
-//! Player spawn state (S05).
+//! Player spawn state (S05) and command queue hook (S06).
 //!
 //! On a successful team handshake the server creates a [`Player`] with the
 //! subject starting loadout (RQ06 / AQ21 / AQ22):
 //!
 //! - level [`STARTING_LEVEL`] (1)
-//! - [`STARTING_FOOD`] (10) food → [`STARTING_LIFE_TU`] (1260) time units of life
+//! - [`STARTING_FOOD`] (10) food -> [`STARTING_LIFE_TU`] (1260) time units of life
 //! - zero of every stone type
 //! - membership on the joined team
 //! - a random map position and facing (N/E/S/W)
@@ -13,6 +13,7 @@
 //! [`FOOD_LIFE_TU`] (126) time units (RQ07 / AQ30); S10 will consume this over
 //! time. The later `inventory` command reports `food` as this remaining life.
 
+use crate::commands::CmdQueue;
 use crate::world::{SeededRng, StoneKind, World};
 
 /// One food unit grants this many time units of life.
@@ -21,7 +22,7 @@ pub const FOOD_LIFE_TU: u32 = 126;
 /// Food units granted at spawn (converted immediately into life TU).
 pub const STARTING_FOOD: u32 = 10;
 
-/// Starting life: 10 food × 126 TU = 1260 (AQ21).
+/// Starting life: 10 food x 126 TU = 1260 (AQ21).
 pub const STARTING_LIFE_TU: u32 = STARTING_FOOD * FOOD_LIFE_TU;
 
 /// Every new player begins at this level (AQ22).
@@ -68,7 +69,7 @@ pub struct Inventory {
 }
 
 impl Inventory {
-    /// Subject starting bag: 10 food → 1260 TU life, no stones.
+    /// Subject starting bag: 10 food -> 1260 TU life, no stones.
     pub fn starting() -> Self {
         Self {
             life_tu: STARTING_LIFE_TU,
@@ -98,7 +99,7 @@ impl Inventory {
 }
 
 /// In-world player created when a client finishes the team handshake.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct Player {
     pub id: u32,
     pub team: String,
@@ -107,6 +108,8 @@ pub struct Player {
     pub orient: Orientation,
     pub level: u8,
     pub inventory: Inventory,
+    /// Successful requests awaiting a response (S06 / RQ12).
+    pub queue: CmdQueue,
 }
 
 impl Player {
@@ -123,7 +126,17 @@ impl Player {
             orient,
             level: STARTING_LEVEL,
             inventory: Inventory::starting(),
+            queue: CmdQueue::new(),
         }
+    }
+
+    /// Format the subject `inventory` response line (food = remaining life TU).
+    pub fn inventory_reply(&self) -> String {
+        let i = &self.inventory;
+        format!(
+            "{{food {}, jade {}, peridot {}, amber {}, amethyst {}, garnet {}, ammolite {}}}\n",
+            i.life_tu, i.jade, i.peridot, i.amber, i.amethyst, i.garnet, i.ammolite
+        )
     }
 
     /// True when this player still matches the subject start loadout checks.
@@ -182,6 +195,14 @@ impl PlayerSet {
     pub fn count_on_team(&self, team: &str) -> usize {
         self.players.values().filter(|p| p.team == team).count()
     }
+
+    /// Earliest command completion deadline among busy players (for poll timeout).
+    pub fn next_busy_deadline(&self) -> Option<std::time::Instant> {
+        self.players
+            .values()
+            .filter_map(|p| p.queue.busy_until())
+            .min()
+    }
 }
 
 #[cfg(test)]
@@ -207,6 +228,17 @@ mod tests {
     }
 
     #[test]
+    fn inventory_reply_lists_life_and_stones() {
+        let world = World::empty(2, 2);
+        let mut rng = SeededRng::new(1);
+        let p = Player::spawn(0, "t", &world, &mut rng);
+        let reply = p.inventory_reply();
+        assert!(reply.starts_with("{food 1260,"));
+        assert!(reply.contains("jade 0"));
+        assert!(reply.ends_with("}\n"));
+    }
+
+    #[test]
     fn spawn_sets_level_team_and_loadout() {
         let world = World::empty(8, 6);
         let mut rng = SeededRng::new(1);
@@ -217,6 +249,7 @@ mod tests {
         assert!(p.has_starting_loadout());
         assert!(p.x < 8 && p.y < 6);
         assert!(Orientation::ALL.contains(&p.orient));
+        assert_eq!(p.queue.pending_count(), 0);
     }
 
     #[test]

@@ -78,8 +78,8 @@ All lines end with `\n`.
 | `net` | Multiplexed accept/read/write via `mio` poll; send `WELCOME\n` on connect; never blocks the event loop forever (50ms poll timeout) |
 | `world` | Toroidal grid; tile food/stones; density-based generate + respawn rules (S04) |
 | `player` | Spawn loadout (level 1, 1260 life TU, 0 stones), team, position, orientation (S05) |
-| `commands` | Parse, validate, enqueue, apply effects |
-| `time` | Global tick from `t`; schedule action completions |
+| `commands` | Parse subject verbs, enqueue ≤10, unknown→`ko` (S06); effects filled in by later tickets |
+| `time` | `action_duration(t, cost)` = `cost/t` seconds (S06 / RQ10) |
 | `ritual` | Enchantment eligibility, consumption, level-up |
 | `broadcast` | Shortest toroidal path → sound sector K ∈ {0..8} |
 | `eggs` | Fork → ship timer → slot / connect_nbr |
@@ -162,7 +162,10 @@ Level `L` sees a forward triangle: row `d` (1..=L) has `2*d+1` tiles, indexed as
 
 ## 8. Time
 
-- Time unit duration = `1/t` seconds.
+- Time unit duration = `1/t` seconds; action wall time = `cost/t` (`server/src/time.rs`).
+- Per-player queue holds at most **10** successful requests awaiting a response;
+  further valid commands are ignored until a slot frees (`server/src/commands.rs`).
+- Unknown / malformed lines get an immediate `ko\n` and do not consume a queue slot.
 - Action wall time ≈ `cost / t` seconds.
 - 1 food = **126** time units of life.
 

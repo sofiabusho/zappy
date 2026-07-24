@@ -11,6 +11,8 @@ handshake (S02/S03): known team → `nb-client\n` + `X Y\n`; unknown team →
 `Error: the team <name> doesn't exist` on the server and disconnect.
 On start it also builds a toroidal resource map (S04) and, on each successful
 team join, spawns a player at level 1 with 1260 life TU and 0 stones (S05).
+After handshake it accepts pipelined commands with `t`-based delays and a max-10
+queue; unknown commands get `ko` (S06).
 
 ```bash
 ./server/server -p 8080 -x 10 -y 10 -c 5 -n team1 team2 -t 100

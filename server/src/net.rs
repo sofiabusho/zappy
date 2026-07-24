@@ -1,19 +1,20 @@
-//! Multiplexed TCP accept + handshake (S02 / S03) and world bootstrap (S04).
+//! Multiplexed TCP accept, handshake, and command scheduling (S02–S06).
 //!
 //! Non-blocking `mio` poll loop: accept clients, send [`WELCOME`], complete the
-//! subject handshake (RQ19 / AQ14), and hold a generated [`crate::world::World`]
-//! for later gameplay tickets.
+//! subject handshake (RQ19 / AQ14), spawn players, and run the per-player
+//! command queue with `t`-based delays (RQ10–RQ12).
 
 use std::collections::HashMap;
 use std::io::{self, ErrorKind, Read, Write};
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use mio::net::{TcpListener, TcpStream};
 use mio::{Events, Interest, Poll, Token};
 
 use crate::cli::Config;
+use crate::commands::{self, Command, KO};
 use crate::player::PlayerSet;
 use crate::world::{SeededRng, World};
 
@@ -67,6 +68,11 @@ impl TeamSlots {
                 *free += 1;
             }
         }
+    }
+
+    /// Remaining free slots for `team` (for `connect_nbr`).
+    fn free(&self, team: &str) -> u32 {
+        self.inner.get(team).map(|(free, _)| *free).unwrap_or(0)
     }
 }
 
@@ -251,6 +257,7 @@ pub fn serve_listener(
     eprintln!("server: {}", world.summary_line());
     let mut players = PlayerSet::new();
     let mut rng = SeededRng::new(world.seed ^ 0x0C0F_FEE0_0D15_CAFE);
+    let t = config.t;
 
     if let Ok(addr) = listener.local_addr() {
         eprintln!("server: listening on {addr}");
@@ -261,7 +268,17 @@ pub fn serve_listener(
             return Ok(());
         }
 
-        if let Err(e) = poll.poll(&mut events, Some(POLL_TIMEOUT)) {
+        let now = Instant::now();
+        // Wake sooner when a command delay is about to elapse (AQ06 timings).
+        let timeout = match players.next_busy_deadline() {
+            Some(deadline) if deadline > now => {
+                deadline.saturating_duration_since(now).min(POLL_TIMEOUT)
+            }
+            Some(_) => Duration::from_millis(1),
+            None => POLL_TIMEOUT,
+        };
+
+        if let Err(e) = poll.poll(&mut events, Some(timeout)) {
             if e.kind() == ErrorKind::Interrupted {
                 continue;
             }
@@ -284,9 +301,12 @@ pub fn serve_listener(
                     event,
                     width,
                     height,
+                    t,
                 )?,
             }
         }
+
+        tick_command_completions(&mut poll, &mut connections, &mut players, &slots, t);
     }
 }
 
@@ -370,6 +390,7 @@ fn handle_connection_event(
     event: &mio::event::Event,
     width: u32,
     height: u32,
+    t: u32,
 ) -> io::Result<()> {
     let mut drop_conn = false;
     let mut want_writable = false;
@@ -401,10 +422,7 @@ fn handle_connection_event(
                 HandshakeStep::Idle => {}
                 HandshakeStep::JoinedNeedsWrite => {
                     want_writable = conn.pending_out();
-                    // Discard any pipelined junk after the team line for now.
-                    if !conn.inbuf.is_empty() {
-                        conn.inbuf.clear();
-                    }
+                    // Keep any pipelined command lines after the team name (S06).
                     if let Some(id) = conn.player_id {
                         if let Some(p) = players.get(id) {
                             eprintln!(
@@ -425,10 +443,9 @@ fn handle_connection_event(
             }
         }
 
-        // After join, keep draining to avoid stalling; ignore payload until S06.
-        if !drop_conn && conn.phase == Phase::Joined && event.is_readable() {
-            let _ = conn.read_in();
-            conn.inbuf.clear();
+        // After handshake: parse commands into the per-player queue (S06).
+        if !drop_conn && conn.phase == Phase::Joined && ingest_player_commands(conn, players, t) {
+            want_writable = true;
         }
 
         if event.is_error() || event.is_read_closed() || event.is_write_closed() {
@@ -453,6 +470,91 @@ fn handle_connection_event(
     }
 
     Ok(())
+}
+
+/// Read `\n`-terminated lines into the player's command queue.
+/// Returns `true` if immediate outbound data was queued (`ko`).
+fn ingest_player_commands(conn: &mut Connection, players: &mut PlayerSet, t: u32) -> bool {
+    let Some(player_id) = conn.player_id else {
+        return false;
+    };
+    let now = Instant::now();
+    let mut queued_ko = false;
+    while let Some(line) = conn.take_line() {
+        match commands::parse_command(&line) {
+            Some(cmd) => {
+                if let Some(player) = players.get_mut(player_id) {
+                    let _ = player.queue.try_enqueue(cmd, now, t);
+                }
+            }
+            None => {
+                conn.queue_out(KO.as_bytes());
+                queued_ko = true;
+            }
+        }
+    }
+    queued_ko
+}
+
+/// Finish delayed commands and queue their protocol replies.
+fn tick_command_completions(
+    poll: &mut Poll,
+    connections: &mut HashMap<Token, Connection>,
+    players: &mut PlayerSet,
+    slots: &TeamSlots,
+    t: u32,
+) {
+    let now = Instant::now();
+    let tokens: Vec<Token> = connections.keys().copied().collect();
+    for token in tokens {
+        let Some(conn) = connections.get_mut(&token) else {
+            continue;
+        };
+        let Some(player_id) = conn.player_id else {
+            continue;
+        };
+        let mut wrote = false;
+        while let Some(player) = players.get_mut(player_id) {
+            let Some(cmd) = player.queue.poll_complete(now, t) else {
+                break;
+            };
+            let reply = complete_command(&cmd, player, slots);
+            conn.queue_out(reply.as_bytes());
+            wrote = true;
+        }
+        if wrote || conn.pending_out() {
+            let _ = set_interest(
+                poll,
+                conn,
+                token,
+                Interest::READABLE.add(Interest::WRITABLE),
+            );
+            let _ = conn.flush_out();
+            if !conn.pending_out() {
+                let _ = set_interest(poll, conn, token, Interest::READABLE);
+            }
+        }
+    }
+}
+
+/// Apply stub / available effects and build the response line(s).
+///
+/// Movement, vision, pick/drop, kick, broadcast, ritual, and fork side-effects
+/// land in later tickets; delays and replies are honored here (S06 skeleton).
+fn complete_command(cmd: &Command, player: &crate::player::Player, slots: &TeamSlots) -> String {
+    match cmd {
+        Command::Advance
+        | Command::Right
+        | Command::Left
+        | Command::Fork
+        | Command::Broadcast(_) => "ok\n".to_string(),
+        Command::Kick => "ok\n".to_string(),
+        Command::See => "{}\n".to_string(),
+        Command::Inventory => player.inventory_reply(),
+        Command::Pick(_) | Command::Drop(_) => "ko\n".to_string(),
+        Command::Enchantment => "evolution in progress\n".to_string(),
+        Command::ConnectNbr => format!("{}\n", slots.free(&player.team)),
+    }
 }
 
 #[cfg(test)]
@@ -484,7 +586,7 @@ mod tests {
             if byte[0] == b'\n' {
                 return Ok(buf);
             }
-            if buf.len() > 64 {
+            if buf.len() > 256 {
                 return Err(io::Error::new(ErrorKind::InvalidData, "line too long"));
             }
         }
@@ -658,6 +760,50 @@ mod tests {
         assert_eq!(nb_line, b"1\n");
         let dim = read_line(&mut client).unwrap();
         assert_eq!(dim, b"10 20\n");
+        stop_server(running, handle);
+    }
+
+    #[test]
+    fn unknown_command_gets_immediate_ko() {
+        let mut cfg = test_config(5);
+        cfg.t = 1000;
+        let (addr, running, handle) = spawn_server(cfg);
+        let (mut client, _, _, _) = handshake(addr, "alpha").expect("handshake");
+        client.write_all(b"not_a_command\n").unwrap();
+        let line = read_line(&mut client).expect("ko");
+        assert_eq!(line, b"ko\n");
+        stop_server(running, handle);
+    }
+
+    #[test]
+    fn connect_nbr_and_inventory_honor_delays() {
+        let mut cfg = test_config(5);
+        cfg.t = 1000; // 1/t = 1ms for inventory
+        let (addr, running, handle) = spawn_server(cfg);
+        let (mut client, _, _, _) = handshake(addr, "alpha").expect("handshake");
+
+        client.write_all(b"connect_nbr\n").unwrap();
+        let nbr = read_line(&mut client).expect("connect_nbr");
+        assert_eq!(nbr, b"4\n"); // 5 - 1 joined
+
+        client.write_all(b"inventory\n").unwrap();
+        let inv = read_line(&mut client).expect("inventory");
+        let inv_str = std::str::from_utf8(&inv).unwrap();
+        assert!(inv_str.starts_with("{food 1260,"));
+        assert!(inv_str.ends_with("}\n"));
+
+        stop_server(running, handle);
+    }
+
+    #[test]
+    fn advance_ok_after_delay() {
+        let mut cfg = test_config(5);
+        cfg.t = 1000; // 7ms
+        let (addr, running, handle) = spawn_server(cfg);
+        let (mut client, _, _, _) = handshake(addr, "alpha").expect("handshake");
+        client.write_all(b"advance\n").unwrap();
+        let line = read_line(&mut client).expect("ok");
+        assert_eq!(line, b"ok\n");
         stop_server(running, handle);
     }
 }
