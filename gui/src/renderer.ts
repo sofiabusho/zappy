@@ -1,5 +1,5 @@
 /**
- * Canvas renderer (G01 / G02).
+ * Canvas renderer (G01 / G02 / G03 layout shared with hit-testing).
  *
  * Draws the toroidal grid plus distinct icons for food, all six stone types,
  * and players (RQ21 / AQ18 / AQ28). A legend strip keeps stone types
@@ -13,6 +13,7 @@ import {
   iconSlots,
   resourceIconOrder,
 } from "./icons.js";
+import { LEGEND_HEIGHT, computeGridLayout } from "./layout.js";
 import { type WorldState } from "./world.js";
 
 const BACKGROUND = "#0c1b12";
@@ -20,10 +21,11 @@ const GRID_LINE = "#1f3b29";
 const EMPTY_TEXT = "#6a8c76";
 const LEGEND_BG = "#081109";
 const LEGEND_TEXT = "#cfe8d8";
-const LEGEND_HEIGHT = 44;
+const SELECT_STROKE = "#cfe8d8";
 
 export class CanvasRenderer {
   private readonly ctx: CanvasRenderingContext2D;
+  private selected: { x: number; y: number } | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext("2d");
@@ -31,6 +33,11 @@ export class CanvasRenderer {
       throw new Error("2D canvas context unavailable");
     }
     this.ctx = ctx;
+  }
+
+  /** Highlight the inspected square (G03); `null` clears. */
+  setSelectedTile(tile: { x: number; y: number } | null): void {
+    this.selected = tile;
   }
 
   /** Redraw the whole frame for the current world state. */
@@ -47,22 +54,33 @@ export class CanvasRenderer {
       return;
     }
 
-    const cols = world.mapWidth;
-    const rows = world.mapHeight;
-    const mapHeight = Math.max(1, height - LEGEND_HEIGHT);
-    const cell = Math.max(
-      1,
-      Math.floor(Math.min(width / cols, mapHeight / rows)),
-    );
-    const gridW = cell * cols;
-    const gridH = cell * rows;
-    const offsetX = Math.floor((width - gridW) / 2);
-    const offsetY = Math.floor((mapHeight - gridH) / 2);
+    const layout = computeGridLayout(width, height, world);
+    if (layout === null) {
+      return;
+    }
+    const { cols, rows, cell, offsetX, offsetY } = layout;
 
     this.drawGrid(offsetX, offsetY, cols, rows, cell);
     this.drawTileIcons(world, offsetX, offsetY, cols, rows, cell);
     this.drawPlayers(world, offsetX, offsetY, cell);
+    this.drawSelection(offsetX, offsetY, cell);
     this.drawLegend(width, height);
+  }
+
+  private drawSelection(
+    offsetX: number,
+    offsetY: number,
+    cell: number,
+  ): void {
+    if (this.selected === null) {
+      return;
+    }
+    const ctx = this.ctx;
+    const x = offsetX + this.selected.x * cell;
+    const y = offsetY + this.selected.y * cell;
+    ctx.strokeStyle = SELECT_STROKE;
+    ctx.lineWidth = Math.max(2, Math.floor(cell / 16));
+    ctx.strokeRect(x + 1, y + 1, cell - 2, cell - 2);
   }
 
   private drawGrid(

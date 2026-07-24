@@ -46,6 +46,16 @@ export class WorldState {
     return [...this.players.values()];
   }
 
+  /** Players currently on tile `(x, y)` (toroidal). */
+  playersAt(x: number, y: number): GuiPlayer[] {
+    if (!this.isReady()) {
+      return [];
+    }
+    const wx = WorldState.wrap(x, this.width);
+    const wy = WorldState.wrap(y, this.height);
+    return this.allPlayers().filter((p) => p.x === wx && p.y === wy);
+  }
+
   /** Wrap a coordinate onto the torus; returns a value in `[0, size)`. */
   private static wrap(value: number, size: number): number {
     if (size <= 0) {

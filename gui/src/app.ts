@@ -1,14 +1,12 @@
 /**
- * GUI entry point (G01).
+ * GUI entry point (G01–G03).
  *
  * Wires a {@link Transport} → protocol parse → {@link WorldState} → {@link
- * CanvasRenderer}. With `?ws=ws://host:port` it connects to a WebSocket bridge
- * in front of the Rust server; otherwise it runs the offline demo stream so
- * the map still renders. Icons (G02), click-details (G03/G04), and sound viz
- * (G05) build on this path.
+ * CanvasRenderer}. Click a square for a floating detail panel with resource
+ * counts (G03 / AQ16 / AQ17). Player characteristic overlays are G04.
  */
 
-import { parseGuiLine } from "./protocol.js";
+import { parseGuiLine, emptyTile } from "./protocol.js";
 import { WorldState } from "./world.js";
 import { CanvasRenderer } from "./renderer.js";
 import {
@@ -18,6 +16,13 @@ import {
   type TransportStatus,
 } from "./transport.js";
 import { demoStream } from "./demo.js";
+import {
+  computeGridLayout,
+  eventToCanvasPoint,
+  hitTestTile,
+} from "./layout.js";
+import { buildTileDetails } from "./tileDetails.js";
+import { TileOverlay } from "./overlay.js";
 
 function requireElement<T extends HTMLElement>(id: string): T {
   const el = document.getElementById(id);
@@ -40,9 +45,11 @@ function start(): void {
   const canvas = requireElement<HTMLCanvasElement>("map");
   const statusEl = requireElement<HTMLElement>("status");
   const dimsEl = requireElement<HTMLElement>("dims");
+  const mainEl = requireElement<HTMLElement>("stage");
 
   const world = new WorldState();
   const renderer = new CanvasRenderer(canvas);
+  const overlay = new TileOverlay(mainEl);
 
   const resize = (): void => {
     const rect = canvas.getBoundingClientRect();
@@ -66,6 +73,49 @@ function start(): void {
         : "—";
     });
   };
+
+  const dismissOverlay = (): void => {
+    overlay.hide();
+    renderer.setSelectedTile(null);
+    scheduleRender();
+  };
+
+  const inspectTile = (
+    tileX: number,
+    tileY: number,
+    clientX: number,
+    clientY: number,
+  ): void => {
+    const content = world.tileAt(tileX, tileY) ?? emptyTile();
+    const playerIds = world.playersAt(tileX, tileY).map((p) => p.id);
+    const details = buildTileDetails(tileX, tileY, content, playerIds);
+    overlay.show(details, clientX, clientY);
+    renderer.setSelectedTile({ x: tileX, y: tileY });
+    scheduleRender();
+  };
+
+  canvas.addEventListener("click", (event: MouseEvent) => {
+    if (!world.isReady()) {
+      return;
+    }
+    const layout = computeGridLayout(canvas.width, canvas.height, world);
+    if (layout === null) {
+      return;
+    }
+    const point = eventToCanvasPoint(canvas, event.clientX, event.clientY);
+    const hit = hitTestTile(point.x, point.y, layout);
+    if (hit === null) {
+      dismissOverlay();
+      return;
+    }
+    inspectTile(hit.x, hit.y, event.clientX, event.clientY);
+  });
+
+  window.addEventListener("keydown", (event: KeyboardEvent) => {
+    if (event.key === "Escape") {
+      dismissOverlay();
+    }
+  });
 
   const { transport, label } = chooseTransport();
 

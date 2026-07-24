@@ -2,10 +2,9 @@
 
 TypeScript + HTML5 Canvas graphic client for Zappy. **No game engines.**
 
-G01: connect path + live map render. **G02: icons for players, food, and all
-six stone types** (jade, peridot, amber, amethyst, garnet, ammolite) with a
-legend strip. Click-to-inspect a square (G03) / player (G04) and sound viz
-(G05) come next.
+G01: connect + map render. G02: icons for players, food, and all six stones.
+**G03: click a square → floating detail panel with per-resource counts** (AQ16 /
+AQ17). Player characteristic overlays (G04) and sound viz (G05) come next.
 
 ## Run
 
@@ -14,6 +13,7 @@ npm install
 npm run build                 # tsc → dist/ (ESM)
 python3 -m http.server 8090   # or any static file server, from gui/
 # open http://127.0.0.1:8090/index.html
+# click any map square → floating panel lists food + each stone count
 ```
 
 With no query string the client runs an **offline demo** stream so the map
@@ -31,8 +31,14 @@ websocat --binary ws-l:127.0.0.1:8090 tcp:127.0.0.1:<gui-port>
 
 ```bash
 npm run lint    # eslint + tsc --noEmit
-npm test        # tsc + node --test (G02 icon/protocol/demo coverage)
+npm test        # tsc + node --test (G02 + G03)
 ```
+
+## Square details (G03)
+
+Click a tile to open a floating panel that lists **every** resource with its
+count (`food` and all six stones, including zeros) so stone numbers on that
+square are distinguishable. Esc or click outside the grid dismisses it.
 
 ## Server → GUI protocol (this client's subset)
 
@@ -49,9 +55,6 @@ the inventory contract: `food jade peridot amber amethyst garnet ammolite`.
 | `ppo #<id> <X> <Y> <O>` | Player position / facing update. |
 | `pdi #<id>` | Player dies / disconnects — remove icon. |
 
-Unknown verbs (future inventory/broadcast events for G03–G05) are ignored.
-
-Icons are distinct Canvas glyphs (circle / diamond / triangle / square / hex /
-chevron) plus a bottom legend so stone types stay distinguishable (AQ18/AQ28).
+Unknown verbs (future broadcast events for G05) are ignored.
 
 See [`AGENTS.md`](../AGENTS.md) and [`docs/SDS.md`](../docs/SDS.md) §12.
