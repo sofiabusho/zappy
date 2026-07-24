@@ -229,7 +229,9 @@ Autonomous loop: maintain food → explore/see → pick resources → broadcast 
 
 - Connect and render map in real time.
 - Icons for players, food, stones.
-- Click tile → floating details (counts per resource).
+- Click tile → floating details (counts per resource) — G03 overlay lists food
+  and each stone type with an explicit count (including zero) so numbers on a
+  square are distinguishable (AQ16 / AQ17).
 - Click player → characteristics overlay.
 
 ### Server → GUI side protocol (G01 / G02)
