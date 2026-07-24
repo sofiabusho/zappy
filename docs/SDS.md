@@ -190,6 +190,7 @@ Empty tiles are empty fields (e.g. `{, , , }` on a bare level-1 view).
 - Same tile → `K = 0`.
 - Else shortest path on torus; map arrival into sectors 1..8 (1 = front, then counterclockwise).
 - See raw `sound.png` reference when available.
+- **Kick `moving <K>` (S11):** K is the push direction relative to the **victim's** facing, using the same cardinal sectors (1 front, 3 right, 5 back, 7 left). Resources on the tile are never moved. Kick returns `ko` if no co-tile players or if any occupant has `in_ritual`.
 
 ## 10. Directory contracts
 

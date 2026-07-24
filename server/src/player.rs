@@ -182,6 +182,9 @@ pub struct Player {
     pub orient: Orientation,
     pub level: u8,
     pub inventory: Inventory,
+    /// True while this player participates in an evolution ritual (S14).
+    /// Kick is forbidden on a tile while any occupant has this set (S11 / RQ14).
+    pub in_ritual: bool,
     /// Successful requests awaiting a response (S06 / RQ12).
     pub queue: CmdQueue,
 }
@@ -200,6 +203,7 @@ impl Player {
             orient,
             level: STARTING_LEVEL,
             inventory: Inventory::starting(),
+            in_ritual: false,
             queue: CmdQueue::new(),
         }
     }

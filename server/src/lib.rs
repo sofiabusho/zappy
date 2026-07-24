@@ -5,10 +5,11 @@
 //! handshake; `world` (S04) owns the toroidal map and resource generation;
 //! `player` (S05) owns spawn loadout and team membership; `time` / `commands`
 //! (S06) own the scheduler and per-player request queue; `vision` (S08) formats
-//! `see` replies.
+//! `see` replies; `kick` (S11) pushes co-tile players with `moving <K>`.
 
 pub mod cli;
 pub mod commands;
+pub mod kick;
 pub mod net;
 pub mod player;
 pub mod time;

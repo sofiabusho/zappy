@@ -535,11 +535,9 @@ fn tick_command_completions(
     let now = Instant::now();
     let tokens: Vec<Token> = connections.keys().copied().collect();
     for token in tokens {
-        let Some(conn) = connections.get_mut(&token) else {
-            continue;
-        };
-        let Some(player_id) = conn.player_id else {
-            continue;
+        let player_id = match connections.get(&token).and_then(|c| c.player_id) {
+            Some(id) => id,
+            None => continue,
         };
         let mut wrote = false;
         loop {
@@ -552,23 +550,58 @@ fn tick_command_completions(
                 };
                 cmd
             };
-            let reply = match &cmd {
+            match &cmd {
                 Command::See => {
                     let Some(viewer) = players.get(player_id) else {
                         break;
                     };
-                    crate::vision::see_reply(viewer, world, players)
+                    let reply = crate::vision::see_reply(viewer, world, players);
+                    let Some(conn) = connections.get_mut(&token) else {
+                        break;
+                    };
+                    conn.queue_out(reply.as_bytes());
+                    wrote = true;
                 }
+                Command::Kick => match crate::kick::apply_kick(player_id, players, world) {
+                    crate::kick::KickOutcome::Ok { victims } => {
+                        for (vid, k) in victims {
+                            deliver_to_player(
+                                poll,
+                                connections,
+                                vid,
+                                format!("moving {k}\n").as_bytes(),
+                            );
+                        }
+                        let Some(conn) = connections.get_mut(&token) else {
+                            break;
+                        };
+                        conn.queue_out(b"ok\n");
+                        wrote = true;
+                    }
+                    crate::kick::KickOutcome::Ko => {
+                        let Some(conn) = connections.get_mut(&token) else {
+                            break;
+                        };
+                        conn.queue_out(b"ko\n");
+                        wrote = true;
+                    }
+                },
                 other => {
                     let Some(player) = players.get_mut(player_id) else {
                         break;
                     };
-                    complete_command(other, player, slots, world)
+                    let reply = complete_command(other, player, slots, world);
+                    let Some(conn) = connections.get_mut(&token) else {
+                        break;
+                    };
+                    conn.queue_out(reply.as_bytes());
+                    wrote = true;
                 }
-            };
-            conn.queue_out(reply.as_bytes());
-            wrote = true;
+            }
         }
+        let Some(conn) = connections.get_mut(&token) else {
+            continue;
+        };
         if wrote || conn.pending_out() {
             let _ = set_interest(
                 poll,
@@ -584,9 +617,39 @@ fn tick_command_completions(
     }
 }
 
+/// Queue `msg` on the TCP connection bound to `player_id`, if any.
+fn deliver_to_player(
+    poll: &mut Poll,
+    connections: &mut HashMap<Token, Connection>,
+    player_id: u32,
+    msg: &[u8],
+) {
+    let Some((&token, _)) = connections
+        .iter()
+        .find(|(_, c)| c.player_id == Some(player_id))
+    else {
+        return;
+    };
+    let Some(conn) = connections.get_mut(&token) else {
+        return;
+    };
+    conn.queue_out(msg);
+    let _ = set_interest(
+        poll,
+        conn,
+        token,
+        Interest::READABLE.add(Interest::WRITABLE),
+    );
+    let _ = conn.flush_out();
+    if !conn.pending_out() {
+        let _ = set_interest(poll, conn, token, Interest::READABLE);
+    }
+}
+
 /// Apply command effects and build the response line(s).
 ///
-/// Movement (S07), pick/drop/inventory (S09). Vision is handled separately.
+/// Movement (S07), pick/drop/inventory (S09). Vision / kick are handled
+/// separately in [`tick_command_completions`].
 fn complete_command(
     cmd: &Command,
     player: &mut crate::player::Player,
@@ -606,8 +669,10 @@ fn complete_command(
             player.turn_left();
             "ok\n".to_string()
         }
-        Command::Fork | Command::Broadcast(_) | Command::Kick => "ok\n".to_string(),
-        Command::See => unreachable!("see handled in tick_command_completions"),
+        Command::Fork | Command::Broadcast(_) => "ok\n".to_string(),
+        Command::See | Command::Kick => {
+            unreachable!("see/kick handled in tick_command_completions")
+        }
         Command::Inventory => player.inventory_reply(),
         Command::Pick(obj) => {
             if player.pick_object(obj, world) {
