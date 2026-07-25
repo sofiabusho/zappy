@@ -26,8 +26,8 @@
 
 | Field | Value |
 |-------|-------|
-| Last push | G05 broadcast/sound viz — ready to commit/push |
-| Who’s up | next: **I01** (scripted multi-client smoke; Deps C04+C05+S15 ✅) |
+| Last push | I01 scripted multi-client smoke (server+2 AI) — pushed |
+| Who’s up | next: **I02** (walk all non-bonus AQs; Deps I01+G05+S16 ✅) |
 | Note | Serial turns only; do not start a second 🟢 |
 
 ## 3. Tracks
@@ -189,7 +189,7 @@ Tracks are **focus areas**, not parallel merge lanes.
 
 | ID | Status | Ticket | Size | Deps | Coverage | Claimed by |
 |----|--------|--------|------|------|----------|------------|
-| I01 | ⬜ | Scripted multi-client localhost smoke (server+2 AI) | M | C04, C05, S15 | RQ01, RQ02, RQ20 | |
+| I01 | ✅ | Scripted multi-client localhost smoke (server+2 AI) | M | C04, C05, S15 | RQ01, RQ02, RQ20 | software-sappho |
 | I02 | ⬜ | Walk all non-bonus AQs; record evidence commands in handoff note | M | I01, G05, S16 | _(all AQ01–AQ33 verification)_ | |
 
 ### Bonus (optional; after I02)
@@ -306,7 +306,8 @@ Tracks are **focus areas**, not parallel merge lanes.
 9. ~~**G03**~~ ✅ click square → floating details with counts
 10. ~~**G04**~~ ✅ click player → characteristics overlay
 11. ~~**G05**~~ ✅ broadcast/sound visualization
-12. Next: **I01** (scripted multi-client localhost smoke; Deps C04+C05+S15 ✅)
+12. ~~**I01**~~ ✅ scripted multi-client localhost smoke (server+2 AI; `scripts/test_smoke_multi_client.py`)
+13. Next: **I02** (walk all non-bonus AQs, record evidence; Deps I01+G05+S16 ✅)
 
 ## 11. Summary by track
 
@@ -316,8 +317,8 @@ Tracks are **focus areas**, not parallel merge lanes.
 | S Server | 16 | 16 | 0 | 0 | 0 |
 | C Client | 5 | 5 | 0 | 0 | 0 |
 | G Graphic | 5 | 5 | 0 | 0 | 0 |
-| I Integration | 2 | 0 | 0 | 2 | 0 |
+| I Integration | 2 | 1 | 0 | 1 | 0 |
 | B Bonus | 4 | 0 | 0 | 4 | 0 |
-| **All** | **36** | **30** | **0** | **6** | **0** |
+| **All** | **36** | **31** | **0** | **5** | **0** |
 
 Core (non-bonus) tickets: **32**. Bonus: **4**.

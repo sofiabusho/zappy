@@ -58,5 +58,6 @@ python3 scripts/test_scaffold.py
 python3 scripts/test_wrappers.py
 python3 scripts/test_check_harness.py
 python3 scripts/test_readme_quickstart.py
+python3 scripts/test_smoke_multi_client.py
 
 printf '\nOK: all checks passed\n'
